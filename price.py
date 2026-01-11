@@ -61,3 +61,27 @@ def marketplace_product_search(target_seller:str)->str:
 @tool
 def identify_marketplace(product_id:str)->str:
     """Identify the retailer for the product"""
+
+
+
+from langchain.tools import ToolRuntime
+from langchain.messages import HumanMessage, ToolMessage
+from langgraph.types import Command
+
+
+@tool
+def update_gtins(runtime: ToolRuntime) -> str:
+    """Update the GTINs for the supported categories of products."""
+    return response['messages'][-1].content
+
+@tool
+def product_identifier_search(runtime: ToolRuntime) -> str:
+    """Search for the product based on its identifier"""
+    return response['messages'][-1].content
+
+@tool
+def product_description_search(runtime: ToolRuntime) -> str:
+    """Search for the product based on its description"""
+    return response['messages'][-1].content
+
+## TODO: Run a Basic Search for 10 products using agents and review workflow in Langchain.
