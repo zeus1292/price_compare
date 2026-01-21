@@ -1,0 +1,42 @@
+# Core
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+
+# LLM & Agents
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-anthropic>=0.1.0
+langchain-community>=0.0.20
+langgraph>=0.0.40
+langsmith>=0.0.80
+openai>=1.10.0
+anthropic>=0.18.0
+
+# Database
+sqlalchemy>=2.0.25
+chromadb>=0.4.22
+aiosqlite>=0.19.0
+
+# Search & Parsing
+tavily-python>=0.3.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+rapidfuzz>=3.6.0
+httpx>=0.26.0
+
+# Security
+cryptography>=42.0.0
+
+# Utilities
+aiofiles>=23.2.0
+tenacity>=8.2.0
+tiktoken>=0.5.2
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
