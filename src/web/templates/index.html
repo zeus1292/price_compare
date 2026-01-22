@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Compare - Product Matching Tool</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Price Compare</h1>
+            <p class="subtitle">Multi-agent product matching tool</p>
+        </header>
+
+        <main>
+            <!-- Search Section -->
+            <section class="search-section">
+                <div class="search-tabs">
+                    <button class="tab-btn active" data-tab="text">Text Search</button>
+                    <button class="tab-btn" data-tab="url">URL Search</button>
+                    <button class="tab-btn" data-tab="image">Image Search</button>
+                </div>
+
+                <!-- Text Search -->
+                <div class="tab-content active" id="text-tab">
+                    <form id="text-search-form" class="search-form">
+                        <input
+                            type="text"
+                            id="text-query"
+                            placeholder="Enter product name, description, or GTIN..."
+                            autocomplete="off"
+                        >
+                        <button type="submit" class="search-btn">Search</button>
+                    </form>
+                </div>
+
+                <!-- URL Search -->
+                <div class="tab-content" id="url-tab">
+                    <form id="url-search-form" class="search-form">
+                        <input
+                            type="url"
+                            id="url-query"
+                            placeholder="Enter product URL..."
+                        >
+                        <button type="submit" class="search-btn">Search</button>
+                    </form>
+                </div>
+
+                <!-- Image Search -->
+                <div class="tab-content" id="image-tab">
+                    <form id="image-search-form" class="search-form">
+                        <div class="file-upload">
+                            <input type="file" id="image-query" accept="image/*">
+                            <label for="image-query">
+                                <span class="upload-icon">📷</span>
+                                <span>Drop image or click to upload</span>
+                            </label>
+                            <div id="image-preview"></div>
+                        </div>
+                        <button type="submit" class="search-btn">Search</button>
+                    </form>
+                </div>
+
+                <!-- Search Options -->
+                <div class="search-options">
+                    <label>
+                        <input type="checkbox" id="enable-live-search" checked>
+                        Enable live web search
+                    </label>
+                    <label>
+                        Confidence threshold:
+                        <input type="range" id="confidence-threshold" min="0" max="100" value="90">
+                        <span id="threshold-value">90%</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Searching...</p>
+            </div>
+
+            <!-- Results Section -->
+            <section id="results-section" class="results-section hidden">
+                <div class="results-header">
+                    <h2>Results</h2>
+                    <div class="results-meta">
+                        <span id="result-count"></span>
+                        <span id="processing-time"></span>
+                    </div>
+                </div>
+
+                <div class="query-info" id="query-info">
+                    <!-- Query info will be populated by JS -->
+                </div>
+
+                <div class="results-grid" id="results-grid">
+                    <!-- Results will be populated by JS -->
+                </div>
+            </section>
+
+            <!-- Error Section -->
+            <div id="error-section" class="error-section hidden">
+                <p id="error-message"></p>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by multi-agent AI with LangGraph</p>
+            <p><a href="/docs" target="_blank">API Documentation</a></p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

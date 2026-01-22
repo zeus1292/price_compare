@@ -2,7 +2,7 @@
 Multi-provider LLM service supporting OpenAI and Anthropic.
 """
 import base64
-from typing import Any, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from anthropic import Anthropic, AsyncAnthropic
 from openai import AsyncOpenAI, OpenAI
@@ -114,7 +114,7 @@ class LLMService:
 
         model = model or "claude-3-5-sonnet-20241022"
 
-        kwargs: dict[str, Any] = {
+        kwargs: Dict[str, Any] = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
@@ -133,7 +133,7 @@ class LLMService:
     )
     async def analyze_image(
         self,
-        image_data: bytes | str,
+        image_data: Union[bytes, str],
         prompt: str,
         model: str = "gpt-4o",
     ) -> str:
@@ -174,7 +174,7 @@ class LLMService:
         )
         return response.choices[0].message.content or ""
 
-    async def extract_product_from_image(self, image_data: bytes | str) -> dict:
+    async def extract_product_from_image(self, image_data: Union[bytes, str]) -> dict:
         """
         Extract product information from an image.
 
@@ -281,9 +281,9 @@ Return JSON with these fields (use null for unknown):
     async def rank_search_results(
         self,
         query_properties: dict,
-        candidates: list[dict],
+        candidates: List[dict],
         top_k: int = 10,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Use LLM to rank search candidates by relevance.
 

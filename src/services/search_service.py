@@ -4,7 +4,7 @@ Hybrid search service combining SQL and vector search.
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from rapidfuzz import fuzz
 
@@ -19,7 +19,7 @@ from src.services.llm_service import LLMService
 @dataclass
 class SearchResult:
     """Container for search results."""
-    matches: list[dict] = field(default_factory=list)
+    matches: List[dict] = field(default_factory=list)
     method: str = "hybrid"
     sql_candidates_count: int = 0
     vector_candidates_count: int = 0
@@ -312,7 +312,7 @@ class HybridSearchService:
         sql_results: list,
         vector_results: dict,
         k: int = 60,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Combine rankings using Reciprocal Rank Fusion.
 
@@ -326,7 +326,7 @@ class HybridSearchService:
         Returns:
             Fused list of product IDs with scores
         """
-        scores: dict[str, dict] = {}
+        scores: Dict[str, dict] = {}
 
         # Score SQL results
         for rank, product in enumerate(sql_results, 1):

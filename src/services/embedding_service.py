@@ -2,7 +2,7 @@
 Embedding service for generating text embeddings using OpenAI.
 """
 import asyncio
-from typing import Optional
+from typing import List, Optional
 
 from openai import AsyncOpenAI, OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -30,7 +30,7 @@ class EmbeddingService:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
-    def embed_text(self, text: str) -> list[float]:
+    def embed_text(self, text: str) -> List[float]:
         """
         Generate embedding for a single text string.
 
@@ -54,7 +54,7 @@ class EmbeddingService:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
-    async def embed_text_async(self, text: str) -> list[float]:
+    async def embed_text_async(self, text: str) -> List[float]:
         """
         Generate embedding for a single text string asynchronously.
 
@@ -74,7 +74,7 @@ class EmbeddingService:
         )
         return response.data[0].embedding
 
-    def embed_texts_batch(self, texts: list[str]) -> list[list[float]]:
+    def embed_texts_batch(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for multiple texts in batches.
 
@@ -104,7 +104,7 @@ class EmbeddingService:
 
         return all_embeddings
 
-    async def embed_texts_batch_async(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts_batch_async(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for multiple texts in batches asynchronously.
 
@@ -176,8 +176,8 @@ class EmbeddingService:
 
     async def embed_products_batch(
         self,
-        products: list[dict]
-    ) -> list[dict]:
+        products: List[dict]
+    ) -> List[dict]:
         """
         Generate embeddings for multiple products.
 
