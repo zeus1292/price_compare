@@ -6,9 +6,11 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.middleware.tracing import TracingMiddleware
@@ -165,6 +167,24 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"},
+        )
+
+    # Static files and web UI
+    static_dir = Path(__file__).parent.parent / "web" / "static"
+    templates_dir = Path(__file__).parent.parent / "web" / "templates"
+
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/", tags=["Web UI"])
+    async def serve_index():
+        """Serve the web UI."""
+        index_path = templates_dir / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Web UI not found"},
         )
 
     return app

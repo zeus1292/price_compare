@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 from email import message_from_bytes, message_from_file
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
@@ -26,7 +26,7 @@ class ParsedProduct:
     market: Optional[str] = None
     raw_price: Optional[str] = None
     file_path: Optional[str] = None
-    errors: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
 
 
 class KlarnaParser:
@@ -376,7 +376,7 @@ class KlarnaParser:
         except Exception as e:
             product.errors.append(f"Metadata JSON error: {str(e)}")
 
-    def _parse_price(self, price_text: str) -> Optional[tuple[float, str]]:
+    def _parse_price(self, price_text: str) -> Optional[Tuple[float, str]]:
         """
         Parse price string into numeric value and currency.
 

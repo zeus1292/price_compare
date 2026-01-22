@@ -4,7 +4,7 @@ Embedding generation pipeline for product data.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional
 
 from src.database.chroma_manager import ChromaManager
 from src.database.sqlite_manager import SQLiteManager
@@ -22,7 +22,7 @@ class EmbeddingStats:
     embedded: int = 0
     failed: int = 0
     skipped: int = 0
-    errors: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
 
 
 class EmbeddingPipeline:
@@ -91,7 +91,7 @@ class EmbeddingPipeline:
 
     async def embed_products_batch(
         self,
-        products: list[dict],
+        products: List[dict],
     ) -> EmbeddingStats:
         """
         Generate embeddings for multiple products.
@@ -257,7 +257,7 @@ class EmbeddingPipeline:
         """
         return self.chroma.product_exists(product_id)
 
-    async def get_missing_embeddings(self) -> list[str]:
+    async def get_missing_embeddings(self) -> List[str]:
         """
         Find products that don't have embeddings.
 

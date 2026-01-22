@@ -2,7 +2,7 @@
 Product Matching Agent for searching the database.
 """
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from langsmith import traceable
 
@@ -137,7 +137,7 @@ class ProductMatcherAgent(BaseAgent):
         price_min: Optional[float] = None,
         price_max: Optional[float] = None,
         limit: int = 100,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Search using SQL filters.
 
@@ -158,8 +158,8 @@ class ProductMatcherAgent(BaseAgent):
         self,
         query_text: str,
         limit: int = 20,
-        filter_ids: Optional[list[str]] = None,
-    ) -> list[dict]:
+        filter_ids: Optional[List[str]] = None,
+    ) -> List[dict]:
         """
         Search using vector similarity.
 
@@ -226,9 +226,9 @@ class ProductMatcherAgent(BaseAgent):
     async def rank_results(
         self,
         query_properties: dict,
-        candidates: list[dict],
+        candidates: List[dict],
         top_k: int = 10,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Use LLM to rank search candidates.
         """

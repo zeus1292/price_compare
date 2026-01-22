@@ -4,7 +4,7 @@ Loads from environment variables and .env file.
 """
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     # API Configuration
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
-    cors_origins: list[str] = Field(default=["http://localhost:3000", "http://127.0.0.1:3000"])
+    cors_origins: List[str] = Field(default=["http://localhost:3000", "http://127.0.0.1:3000"])
 
     # Security Configuration
     encryption_key: SecretStr = Field(

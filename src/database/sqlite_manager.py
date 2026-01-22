@@ -5,7 +5,7 @@ Handles CRUD operations and search queries.
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple
 
 from sqlalchemy import and_, create_engine, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -141,7 +141,7 @@ class SQLiteManager:
                 return True
             return False
 
-    async def bulk_create_products(self, products_data: list[dict]) -> int:
+    async def bulk_create_products(self, products_data: List[dict]) -> int:
         """Bulk create products for batch ingestion."""
         async with self.async_session() as session:
             products = []
@@ -165,7 +165,7 @@ class SQLiteManager:
         category: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Product]:
+    ) -> List[Product]:
         """
         Search products with SQL filters.
         Returns candidates for further vector search refinement.
@@ -201,7 +201,7 @@ class SQLiteManager:
             result = await session.execute(query)
             return list(result.scalars().all())
 
-    async def get_products_by_ids(self, product_ids: list[str]) -> list[Product]:
+    async def get_products_by_ids(self, product_ids: List[str]) -> List[Product]:
         """Get multiple products by their IDs."""
         async with self.async_session() as session:
             result = await session.execute(
@@ -236,7 +236,7 @@ class SQLiteManager:
         limit: int = 20,
         merchant: Optional[str] = None,
         market: Optional[str] = None,
-    ) -> tuple[list[Product], int]:
+    ) -> Tuple[List[Product], int]:
         """List products with pagination."""
         offset = (page - 1) * limit
         products = await self.search_products(
@@ -355,7 +355,7 @@ class SQLiteManager:
                 await session.refresh(log)
             return log
 
-    async def get_pending_ingestion_files(self) -> list[str]:
+    async def get_pending_ingestion_files(self) -> List[str]:
         """Get list of files that haven't been processed yet."""
         async with self.async_session() as session:
             result = await session.execute(

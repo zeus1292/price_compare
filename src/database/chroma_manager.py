@@ -2,7 +2,7 @@
 ChromaDB manager for vector store operations.
 Handles product embeddings and semantic search.
 """
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -33,7 +33,7 @@ class ChromaManager:
                 allow_reset=True,
             )
         )
-        self._collections: dict[str, chromadb.Collection] = {}
+        self._collections: Dict[str, chromadb.Collection] = {}
 
     def get_or_create_collection(
         self,
@@ -77,7 +77,7 @@ class ChromaManager:
         self,
         product_id: str,
         name: str,
-        embedding: list[float],
+        embedding: List[float],
         metadata: Optional[dict] = None,
     ) -> None:
         """Add a single product name embedding."""
@@ -91,10 +91,10 @@ class ChromaManager:
 
     def add_product_embeddings_batch(
         self,
-        product_ids: list[str],
-        names: list[str],
-        embeddings: list[list[float]],
-        metadatas: Optional[list[dict]] = None,
+        product_ids: List[str],
+        names: List[str],
+        embeddings: List[List[float]],
+        metadatas: Optional[List[dict]] = None,
     ) -> None:
         """Add multiple product name embeddings in batch."""
         metas = metadatas or [{} for _ in product_ids]
@@ -109,7 +109,7 @@ class ChromaManager:
         self,
         product_id: str,
         description: str,
-        embedding: list[float],
+        embedding: List[float],
         metadata: Optional[dict] = None,
     ) -> None:
         """Add a single product description embedding."""
@@ -123,10 +123,10 @@ class ChromaManager:
 
     def add_description_embeddings_batch(
         self,
-        product_ids: list[str],
-        descriptions: list[str],
-        embeddings: list[list[float]],
-        metadatas: Optional[list[dict]] = None,
+        product_ids: List[str],
+        descriptions: List[str],
+        embeddings: List[List[float]],
+        metadatas: Optional[List[dict]] = None,
     ) -> None:
         """Add multiple product description embeddings in batch."""
         metas = metadatas or [{} for _ in product_ids]
@@ -142,9 +142,9 @@ class ChromaManager:
     def query_by_embedding(
         self,
         collection_name: str,
-        query_embedding: list[float],
+        query_embedding: List[float],
         limit: int = 10,
-        filter_ids: Optional[list[str]] = None,
+        filter_ids: Optional[List[str]] = None,
         where: Optional[dict] = None,
     ) -> dict:
         """
@@ -187,9 +187,9 @@ class ChromaManager:
 
     def query_names(
         self,
-        query_embedding: list[float],
+        query_embedding: List[float],
         limit: int = 10,
-        filter_ids: Optional[list[str]] = None,
+        filter_ids: Optional[List[str]] = None,
         merchant: Optional[str] = None,
         market: Optional[str] = None,
     ) -> dict:
@@ -210,9 +210,9 @@ class ChromaManager:
 
     def query_descriptions(
         self,
-        query_embedding: list[float],
+        query_embedding: List[float],
         limit: int = 10,
-        filter_ids: Optional[list[str]] = None,
+        filter_ids: Optional[List[str]] = None,
     ) -> dict:
         """Query product descriptions collection."""
         return self.query_by_embedding(
@@ -240,7 +240,7 @@ class ChromaManager:
     def update_product_embedding(
         self,
         product_id: str,
-        embedding: list[float],
+        embedding: List[float],
         document: Optional[str] = None,
         metadata: Optional[dict] = None,
         collection_name: str = COLLECTION_NAMES,
@@ -269,7 +269,7 @@ class ChromaManager:
             except Exception:
                 pass  # Product may not exist in this collection
 
-    def delete_products_batch(self, product_ids: list[str]) -> None:
+    def delete_products_batch(self, product_ids: List[str]) -> None:
         """Delete multiple products from all collections."""
         for collection_name in [self.COLLECTION_NAMES, self.COLLECTION_DESCRIPTIONS]:
             try:

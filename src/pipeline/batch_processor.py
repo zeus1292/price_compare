@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from src.config.settings import get_settings
 from src.database.chroma_manager import ChromaManager
@@ -26,7 +26,7 @@ class ProcessingStats:
     processed: int = 0
     failed: int = 0
     skipped: int = 0
-    errors: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -145,7 +145,7 @@ class BatchProcessor:
         stats.end_time = datetime.utcnow()
         return stats
 
-    def _discover_product_dirs(self, source: Path) -> list[Path]:
+    def _discover_product_dirs(self, source: Path) -> List[Path]:
         """
         Discover all product directories in dataset.
 
@@ -165,7 +165,7 @@ class BatchProcessor:
 
         return product_dirs
 
-    async def _process_batch(self, batch: list[Path]) -> dict:
+    async def _process_batch(self, batch: List[Path]) -> dict:
         """
         Process a batch of product directories.
 
@@ -222,8 +222,8 @@ class BatchProcessor:
 
     async def _generate_embeddings_batch(
         self,
-        products: list[dict]
-    ) -> list[dict]:
+        products: List[dict]
+    ) -> List[dict]:
         """
         Generate embeddings for a batch of products.
 
@@ -258,8 +258,8 @@ class BatchProcessor:
 
     async def _insert_batch(
         self,
-        products: list[dict],
-        embeddings: list[dict]
+        products: List[dict],
+        embeddings: List[dict]
     ) -> None:
         """
         Insert products and embeddings into databases.

@@ -3,7 +3,7 @@ Live Search Agent using Tavily for web search.
 """
 import logging
 import time
-from typing import Optional
+from typing import List, Optional
 
 from langsmith import traceable
 from tavily import TavilyClient
@@ -137,7 +137,7 @@ class LiveSearcherAgent(BaseAgent):
         self,
         query: str,
         max_results: int = 10,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Execute Tavily search.
         """
@@ -168,9 +168,9 @@ class LiveSearcherAgent(BaseAgent):
     @traceable(name="parse_search_results")
     async def _parse_search_results(
         self,
-        results: list[dict],
+        results: List[dict],
         query_properties: dict,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Parse Tavily results and extract product information.
         """
@@ -275,9 +275,9 @@ Return null if this is not a product listing."""
 
     def _verify_matches(
         self,
-        products: list[dict],
+        products: List[dict],
         query_properties: dict,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Verify and filter matches based on confidence.
         """
@@ -301,7 +301,7 @@ Return null if this is not a product listing."""
         product_name: str,
         brand: Optional[str] = None,
         category: Optional[str] = None,
-    ) -> list[dict]:
+    ) -> List[dict]:
         """
         Standalone method for searching a product.
 

@@ -3,7 +3,7 @@ Base agent class with LangSmith tracing integration.
 """
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from langsmith import traceable
 
@@ -101,7 +101,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def validate_state(self, state: dict, required_fields: list[str]) -> bool:
+    def validate_state(self, state: dict, required_fields: List[str]) -> bool:
         """
         Validate that required fields are present in state.
 

@@ -3,7 +3,7 @@ Orchestrator Agent using LangGraph for coordinating the product matching workflo
 """
 import logging
 import time
-from typing import Any, Literal, Optional, TypedDict
+from typing import Any, List, Literal, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 from langsmith import traceable
@@ -35,7 +35,7 @@ class OrchestratorState(TypedDict, total=False):
     extraction_error: Optional[str]
 
     # Matching phase
-    database_matches: list[dict]
+    database_matches: List[dict]
     match_confidence: float
     search_method: Optional[str]
     sql_candidates_count: int
@@ -43,12 +43,12 @@ class OrchestratorState(TypedDict, total=False):
 
     # Live search phase
     live_search_triggered: bool
-    live_search_results: list[dict]
+    live_search_results: List[dict]
     live_search_query: Optional[str]
     search_time_ms: int
 
     # Output
-    final_results: list[dict]
+    final_results: List[dict]
     processing_time_ms: int
     error: Optional[str]
     trace_id: Optional[str]
@@ -234,9 +234,9 @@ class Orchestrator:
 
     def _combine_results(
         self,
-        database_matches: list[dict],
-        live_results: list[dict],
-    ) -> list[dict]:
+        database_matches: List[dict],
+        live_results: List[dict],
+    ) -> List[dict]:
         """
         Combine database and live search results.
 
