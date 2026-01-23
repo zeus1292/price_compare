@@ -79,7 +79,23 @@
             <!-- Loading Indicator -->
             <div id="loading" class="loading hidden">
                 <div class="spinner"></div>
-                <p>Searching...</p>
+                <p class="loading-text">Searching for products...</p>
+                <p class="loading-status" id="loading-status">Initializing search</p>
+                <div class="loading-steps">
+                    <div class="loading-step" id="step-extract">
+                        <span class="step-icon">1</span>
+                        <span>Analyzing query</span>
+                    </div>
+                    <div class="loading-step" id="step-search">
+                        <span class="step-icon">2</span>
+                        <span>Searching database</span>
+                    </div>
+                    <div class="loading-step" id="step-rank">
+                        <span class="step-icon">3</span>
+                        <span>Ranking results</span>
+                    </div>
+                </div>
+                <p class="loading-time" id="loading-time"></p>
             </div>
 
             <!-- Results Section -->

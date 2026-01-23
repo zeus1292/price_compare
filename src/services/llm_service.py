@@ -85,20 +85,31 @@ class LLMService:
         max_tokens: int,
     ) -> str:
         """Generate completion using OpenAI."""
-        model = model or "gpt-4o"
+        import logging
+        logger = logging.getLogger(__name__)
+
+        model = model or "gpt-4o-mini"  # Use mini for lower latency
         messages = []
 
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = await self.openai_async.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content or ""
+        logger.info(f"OpenAI request: model={model}, prompt_length={len(prompt)}")
+
+        try:
+            response = await self.openai_async.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            result = response.choices[0].message.content or ""
+            logger.info(f"OpenAI response: length={len(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise
 
     async def _complete_anthropic(
         self,
@@ -109,10 +120,13 @@ class LLMService:
         max_tokens: int,
     ) -> str:
         """Generate completion using Anthropic."""
+        import logging
+        logger = logging.getLogger(__name__)
+
         if not self.anthropic_async:
             raise ValueError("Anthropic client not configured")
 
-        model = model or "claude-3-5-sonnet-20241022"
+        model = model or "claude-3-5-haiku-20241022"  # Use Haiku for lower latency
 
         kwargs: Dict[str, Any] = {
             "model": model,
@@ -124,8 +138,16 @@ class LLMService:
         if system_prompt:
             kwargs["system"] = system_prompt
 
-        response = await self.anthropic_async.messages.create(**kwargs)
-        return response.content[0].text if response.content else ""
+        logger.info(f"Anthropic request: model={model}, prompt_length={len(prompt)}")
+
+        try:
+            response = await self.anthropic_async.messages.create(**kwargs)
+            result = response.content[0].text if response.content else ""
+            logger.info(f"Anthropic response: length={len(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"Anthropic API error: {e}")
+            raise
 
     @retry(
         stop=stop_after_attempt(3),
@@ -135,7 +157,7 @@ class LLMService:
         self,
         image_data: Union[bytes, str],
         prompt: str,
-        model: str = "gpt-4o",
+        model: str = "gpt-4o-mini",  # Use mini for lower latency
     ) -> str:
         """
         Analyze an image using GPT-4o vision.

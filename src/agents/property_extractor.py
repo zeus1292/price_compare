@@ -94,7 +94,14 @@ class PropertyExtractorAgent(BaseAgent):
 
         Uses LLM to parse natural language queries.
         """
-        return await self.llm.extract_product_from_text(text)
+        logger.info(f"Extracting properties from text: '{text[:100]}...'")
+        try:
+            result = await self.llm.extract_product_from_text(text)
+            logger.info(f"Extraction result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Text extraction LLM call failed: {e}", exc_info=True)
+            raise
 
     async def _extract_from_url(self, url: str) -> dict:
         """

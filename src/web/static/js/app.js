@@ -16,6 +16,14 @@ const enableLiveSearch = document.getElementById('enable-live-search');
 const confidenceThreshold = document.getElementById('confidence-threshold');
 const thresholdValue = document.getElementById('threshold-value');
 const loadingSection = document.getElementById('loading');
+const loadingStatus = document.getElementById('loading-status');
+const loadingTime = document.getElementById('loading-time');
+const stepExtract = document.getElementById('step-extract');
+const stepSearch = document.getElementById('step-search');
+const stepRank = document.getElementById('step-rank');
+
+let loadingStartTime = null;
+let loadingTimer = null;
 const resultsSection = document.getElementById('results-section');
 const resultCount = document.getElementById('result-count');
 const processingTime = document.getElementById('processing-time');
@@ -189,9 +197,13 @@ function createProductCard(product) {
     const confidenceClass = confidence >= 0.8 ? 'confidence-high' :
                            confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
 
+    // Generate placeholder with product initials if no image
+    const initials = name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const placeholderColor = stringToColor(name);
+
     const imageHtml = imageUrl
-        ? `<img src="${imageUrl}" alt="${name}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\'>📦</div>'">`
-        : '<div class="product-image placeholder">📦</div>';
+        ? `<img src="${imageUrl}" alt="${name}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background-color: ${placeholderColor}\\'>${initials}</div>'">`
+        : `<div class="product-image placeholder" style="background-color: ${placeholderColor}">${initials}</div>`;
 
     const linkHtml = sourceUrl
         ? `<a href="${sourceUrl}" target="_blank" class="product-link">View Product</a>`
@@ -212,6 +224,16 @@ function createProductCard(product) {
             ${linkHtml}
         </div>
     `;
+}
+
+// Generate a consistent color from a string
+function stringToColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = hash % 360;
+    return `hsl(${hue}, 65%, 75%)`;
 }
 
 // Utility functions
@@ -235,10 +257,55 @@ function escapeHtml(text) {
 
 function showLoading() {
     loadingSection.classList.remove('hidden');
+    loadingStartTime = Date.now();
+
+    // Reset steps
+    [stepExtract, stepSearch, stepRank].forEach(step => {
+        step.classList.remove('active', 'complete');
+    });
+
+    // Start step animation
+    updateLoadingStep(1);
+
+    // Start timer
+    loadingTimer = setInterval(() => {
+        const elapsed = ((Date.now() - loadingStartTime) / 1000).toFixed(1);
+        loadingTime.textContent = `Elapsed: ${elapsed}s`;
+    }, 100);
 }
 
 function hideLoading() {
     loadingSection.classList.add('hidden');
+    if (loadingTimer) {
+        clearInterval(loadingTimer);
+        loadingTimer = null;
+    }
+}
+
+function updateLoadingStep(step) {
+    const steps = [
+        { el: stepExtract, status: 'Analyzing your query...' },
+        { el: stepSearch, status: 'Searching product database...' },
+        { el: stepRank, status: 'Ranking and filtering results...' }
+    ];
+
+    steps.forEach((s, i) => {
+        if (i < step - 1) {
+            s.el.classList.remove('active');
+            s.el.classList.add('complete');
+        } else if (i === step - 1) {
+            s.el.classList.add('active');
+            s.el.classList.remove('complete');
+            loadingStatus.textContent = s.status;
+        } else {
+            s.el.classList.remove('active', 'complete');
+        }
+    });
+
+    // Auto-advance steps for demo (in real app, this would be driven by server events)
+    if (step < 3) {
+        setTimeout(() => updateLoadingStep(step + 1), 1500);
+    }
 }
 
 function showResults() {

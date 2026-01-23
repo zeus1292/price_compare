@@ -149,6 +149,7 @@ class LiveSearcherAgent(BaseAgent):
                 query=query,
                 search_depth="advanced",
                 max_results=max_results,
+                include_images=True,  # Include images in results
                 include_domains=[
                     "amazon.com",
                     "ebay.com",
@@ -159,7 +160,15 @@ class LiveSearcherAgent(BaseAgent):
                 ],
             )
 
-            return response.get("results", [])
+            results = response.get("results", [])
+            images = response.get("images", [])
+
+            # Attach images to results if available
+            for i, result in enumerate(results):
+                if i < len(images):
+                    result["image_url"] = images[i]
+
+            return results
 
         except Exception as e:
             logger.error(f"Tavily search error: {e}")
@@ -204,6 +213,7 @@ class LiveSearcherAgent(BaseAgent):
         title = result.get("title", "")
         url = result.get("url", "")
         content = result.get("content", "")
+        image_url = result.get("image_url")  # Get image from Tavily result
 
         if not title:
             return None
@@ -244,6 +254,9 @@ Return null if this is not a product listing."""
             if start >= 0 and end > start:
                 product = json.loads(response[start:end])
                 product["match_source"] = "live_search"
+                # Add image URL if available
+                if image_url:
+                    product["image_url"] = image_url
                 return product
 
         except json.JSONDecodeError:
@@ -255,6 +268,7 @@ Return null if this is not a product listing."""
             "name": title,
             "source_url": url,
             "merchant": merchant,
+            "image_url": image_url,  # Include image in fallback too
             "match_source": "live_search",
             "match_confidence": 0.5,
         }

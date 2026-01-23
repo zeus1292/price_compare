@@ -319,11 +319,24 @@ class Orchestrator:
         }
 
         try:
+            logger.info(f"Starting orchestrator search: input_type={input_type}, query_length={len(query)}")
+
             # Run the graph
             final_state = await self.graph.ainvoke(initial_state)
 
             # Calculate total processing time
             processing_time_ms = int((time.perf_counter() - start_time) * 1000)
+
+            logger.info(
+                f"Orchestrator completed: "
+                f"extracted_props={bool(final_state.get('extracted_properties'))}, "
+                f"db_matches={len(final_state.get('database_matches', []))}, "
+                f"live_results={len(final_state.get('live_search_results', []))}, "
+                f"time_ms={processing_time_ms}"
+            )
+
+            if final_state.get("extraction_error"):
+                logger.warning(f"Extraction error: {final_state.get('extraction_error')}")
 
             return {
                 "results": final_state.get("final_results", [])[:limit],
@@ -344,7 +357,7 @@ class Orchestrator:
             }
 
         except Exception as e:
-            logger.error(f"Orchestrator error: {e}")
+            logger.error(f"Orchestrator error: {e}", exc_info=True)
             processing_time_ms = int((time.perf_counter() - start_time) * 1000)
 
             return {
