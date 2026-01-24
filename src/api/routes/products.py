@@ -219,3 +219,102 @@ async def get_product_by_gtin(gtin: str):
     except Exception as e:
         logger.error(f"Failed to get product by GTIN {gtin}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ContributeProductRequest(BaseModel):
+    """Request to contribute a product to the database."""
+    name: str = Field(..., min_length=3, description="Product name")
+    price: Optional[float] = Field(None, ge=0, description="Product price")
+    currency: str = Field(default="USD", description="Currency code")
+    image_url: Optional[str] = Field(None, description="Product image URL")
+    source_url: Optional[str] = Field(None, description="Product page URL")
+    merchant: Optional[str] = Field(None, description="Merchant/store name")
+    category: Optional[str] = Field(None, description="Product category")
+    brand: Optional[str] = Field(None, description="Brand name")
+
+
+@router.post("/products/contribute")
+async def contribute_product(request: ContributeProductRequest):
+    """
+    Contribute a product to the database.
+
+    This endpoint allows users to add products they've searched for,
+    improving the database for future searches. Products are indexed
+    for both SQL and vector search.
+    """
+    from src.database.chroma_manager import ChromaManager
+    from src.services.embedding_service import EmbeddingService
+
+    db = get_db()
+    chroma = ChromaManager()
+    embeddings = EmbeddingService()
+
+    try:
+        # Check if product already exists by URL
+        if request.source_url:
+            existing = await db.get_product_by_url(request.source_url)
+            if existing:
+                return {
+                    "message": "Product already exists",
+                    "product": existing.to_dict(),
+                    "created": False,
+                }
+
+        # Create product in SQLite
+        product_data = request.model_dump()
+        product_data["name_normalized"] = request.name.lower().strip()
+
+        created = await db.create_product(product_data)
+        product_dict = created.to_dict()
+
+        # Generate and store embedding
+        try:
+            embedding = await embeddings.embed_text_async(request.name)
+            chroma.add_product_embedding(
+                product_id=str(created.id),
+                name=request.name,
+                embedding=embedding,
+                metadata={
+                    "merchant": request.merchant or "",
+                    "category": request.category or "",
+                    "price": request.price or 0.0,
+                },
+            )
+            product_dict["embedding_generated"] = True
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding: {e}")
+            product_dict["embedding_generated"] = False
+
+        return {
+            "message": "Product contributed successfully",
+            "product": product_dict,
+            "created": True,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to contribute product: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/products/stats")
+async def get_product_stats():
+    """
+    Get database statistics.
+    """
+    from src.database.chroma_manager import ChromaManager
+
+    db = get_db()
+    chroma = ChromaManager()
+
+    try:
+        db_stats = await db.get_stats()
+        chroma_stats = chroma.get_stats()
+
+        return {
+            "database": db_stats,
+            "vector_store": chroma_stats,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

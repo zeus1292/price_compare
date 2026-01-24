@@ -121,11 +121,45 @@
             <div id="error-section" class="error-section hidden">
                 <p id="error-message"></p>
             </div>
+
+            <!-- Contribute Section -->
+            <section class="contribute-section">
+                <button class="contribute-toggle" onclick="toggleContributeForm()">
+                    + Contribute a Product
+                </button>
+                <div id="contribute-form" class="contribute-form hidden">
+                    <h3>Add a Product to the Database</h3>
+                    <p class="contribute-desc">Help improve search results by adding products you know about.</p>
+                    <form id="product-contribute-form" onsubmit="submitProduct(event)">
+                        <div class="form-row">
+                            <input type="text" id="contrib-name" placeholder="Product name *" required>
+                            <input type="text" id="contrib-brand" placeholder="Brand">
+                        </div>
+                        <div class="form-row">
+                            <input type="number" id="contrib-price" placeholder="Price" step="0.01" min="0">
+                            <input type="text" id="contrib-merchant" placeholder="Store/Merchant">
+                        </div>
+                        <div class="form-row">
+                            <input type="url" id="contrib-url" placeholder="Product page URL">
+                            <input type="url" id="contrib-image" placeholder="Image URL">
+                        </div>
+                        <div class="form-row">
+                            <input type="text" id="contrib-category" placeholder="Category (e.g., Electronics)">
+                            <button type="submit" class="contribute-btn">Add Product</button>
+                        </div>
+                    </form>
+                    <div id="contribute-result" class="contribute-result hidden"></div>
+                </div>
+            </section>
         </main>
 
         <footer>
             <p>Powered by multi-agent AI with LangGraph</p>
-            <p><a href="/docs" target="_blank">API Documentation</a></p>
+            <p>
+                <a href="/docs" target="_blank">API Documentation</a>
+                <span class="footer-separator">|</span>
+                <a href="https://smith.langchain.com/o/default/projects/p/price-compare" target="_blank" id="langsmith-link">View Traces (LangSmith)</a>
+            </p>
         </footer>
     </div>
 

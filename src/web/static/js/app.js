@@ -176,6 +176,11 @@ function displayResults(data) {
     if (qi.live_search_triggered) {
         queryInfoHtml += ' | <span style="color: var(--warning-color);">Live search triggered</span>';
     }
+    // Add trace link if available
+    if (data.trace_id) {
+        const traceUrl = `https://smith.langchain.com/o/default/projects/p/price-compare/r/${data.trace_id}`;
+        queryInfoHtml += `<br><a href="${traceUrl}" target="_blank" class="trace-link">View trace in LangSmith</a>`;
+    }
     queryInfo.innerHTML = queryInfoHtml;
 
     // Display results
@@ -323,6 +328,58 @@ function showError(message) {
 
 function hideError() {
     errorSection.classList.add('hidden');
+}
+
+// Contribute form functions
+function toggleContributeForm() {
+    const form = document.getElementById('contribute-form');
+    form.classList.toggle('hidden');
+}
+
+async function submitProduct(event) {
+    event.preventDefault();
+
+    const resultDiv = document.getElementById('contribute-result');
+    resultDiv.classList.add('hidden');
+
+    const data = {
+        name: document.getElementById('contrib-name').value.trim(),
+        brand: document.getElementById('contrib-brand').value.trim() || null,
+        price: parseFloat(document.getElementById('contrib-price').value) || null,
+        merchant: document.getElementById('contrib-merchant').value.trim() || null,
+        source_url: document.getElementById('contrib-url').value.trim() || null,
+        image_url: document.getElementById('contrib-image').value.trim() || null,
+        category: document.getElementById('contrib-category').value.trim() || null,
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/products/contribute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            resultDiv.className = 'contribute-result success';
+            resultDiv.textContent = result.created
+                ? `Product "${data.name}" added successfully!`
+                : `Product already exists in the database.`;
+            resultDiv.classList.remove('hidden');
+
+            // Clear form if new product
+            if (result.created) {
+                document.getElementById('product-contribute-form').reset();
+            }
+        } else {
+            throw new Error(result.detail || 'Failed to add product');
+        }
+    } catch (error) {
+        resultDiv.className = 'contribute-result error';
+        resultDiv.textContent = `Error: ${error.message}`;
+        resultDiv.classList.remove('hidden');
+    }
 }
 
 // Initialize
