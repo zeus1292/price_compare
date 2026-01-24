@@ -5,146 +5,200 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Compare - Product Matching Tool</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Price Compare</h1>
-            <p class="subtitle">Multi-agent product matching tool</p>
-        </header>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <span class="logo-icon">🏷️</span>
+                <span class="logo-text">Price<span>Compare</span></span>
+            </a>
+        </div>
+    </header>
 
+    <div class="app-container">
         <main>
-            <!-- Search Section -->
-            <section class="search-section">
-                <div class="search-tabs">
-                    <button class="tab-btn active" data-tab="text">Text Search</button>
-                    <button class="tab-btn" data-tab="url">URL Search</button>
-                    <button class="tab-btn" data-tab="image">Image Search</button>
+            <!-- Search Module (Collapsible) -->
+            <section class="search-module" id="search-module">
+                <!-- Search Header - Click to collapse/expand -->
+                <div class="search-header" id="search-header" onclick="toggleSearchModule()">
+                    <div class="search-title">
+                        <span class="search-title-icon">🔍</span>
+                        <span class="search-title-text">Product Search</span>
+                        <span class="search-query-preview hidden" id="search-query-preview"></span>
+                    </div>
+                    <button class="search-expand-btn" type="button" aria-label="Toggle search">
+                        <span class="expand-icon">▼</span>
+                    </button>
                 </div>
 
-                <!-- Text Search -->
-                <div class="tab-content active" id="text-tab">
-                    <form id="text-search-form" class="search-form">
-                        <input
-                            type="text"
-                            id="text-query"
-                            placeholder="Enter product name, description, or GTIN..."
-                            autocomplete="off"
-                        >
-                        <button type="submit" class="search-btn">Search</button>
-                    </form>
-                </div>
+                <!-- Search Body -->
+                <div class="search-body" id="search-body">
+                    <!-- Search Tabs -->
+                    <div class="search-tabs">
+                        <button class="tab-btn active" data-tab="text">
+                            <span class="tab-icon">📝</span>
+                            Text Search
+                        </button>
+                        <button class="tab-btn" data-tab="url">
+                            <span class="tab-icon">🔗</span>
+                            URL Search
+                        </button>
+                        <button class="tab-btn" data-tab="image">
+                            <span class="tab-icon">📷</span>
+                            Image Search
+                        </button>
+                    </div>
 
-                <!-- URL Search -->
-                <div class="tab-content" id="url-tab">
-                    <form id="url-search-form" class="search-form">
-                        <input
-                            type="url"
-                            id="url-query"
-                            placeholder="Enter product URL..."
-                        >
-                        <button type="submit" class="search-btn">Search</button>
-                    </form>
-                </div>
+                    <!-- Text Search Tab -->
+                    <div class="tab-content active" id="text-tab">
+                        <form id="text-search-form" class="search-form">
+                            <div class="search-input-wrapper">
+                                <span class="search-input-icon">🔍</span>
+                                <input
+                                    type="text"
+                                    id="text-query"
+                                    class="search-input"
+                                    placeholder="Search for any product... (e.g., iPhone 15 Pro, Sony headphones)"
+                                    autocomplete="off"
+                                >
+                            </div>
+                            <button type="submit" class="search-btn">
+                                <span>Search</span>
+                            </button>
+                        </form>
+                    </div>
 
-                <!-- Image Search -->
-                <div class="tab-content" id="image-tab">
-                    <form id="image-search-form" class="search-form">
-                        <div class="file-upload">
-                            <input type="file" id="image-query" accept="image/*">
-                            <label for="image-query">
+                    <!-- URL Search Tab -->
+                    <div class="tab-content" id="url-tab">
+                        <form id="url-search-form" class="search-form">
+                            <div class="search-input-wrapper">
+                                <span class="search-input-icon">🔗</span>
+                                <input
+                                    type="url"
+                                    id="url-query"
+                                    class="search-input"
+                                    placeholder="Paste a product URL from any store..."
+                                >
+                            </div>
+                            <button type="submit" class="search-btn">
+                                <span>Search</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Image Search Tab -->
+                    <div class="tab-content" id="image-tab">
+                        <form id="image-search-form" class="search-form">
+                            <div class="file-upload-area" id="file-upload-area">
+                                <input type="file" id="image-query" accept="image/*">
                                 <span class="upload-icon">📷</span>
-                                <span>Drop image or click to upload</span>
-                            </label>
-                            <div id="image-preview"></div>
-                        </div>
-                        <button type="submit" class="search-btn">Search</button>
-                    </form>
-                </div>
+                                <p class="upload-text">
+                                    <strong>Click to upload</strong> or drag and drop<br>
+                                    PNG, JPG, WEBP up to 10MB
+                                </p>
+                                <div id="image-preview"></div>
+                            </div>
+                            <button type="submit" class="search-btn">
+                                <span>Search</span>
+                            </button>
+                        </form>
+                    </div>
 
-                <!-- Search Options -->
-                <div class="search-options">
-                    <label>
-                        <input type="checkbox" id="enable-live-search" checked>
-                        Enable live web search
-                    </label>
-                    <label>
-                        Confidence threshold:
-                        <input type="range" id="confidence-threshold" min="0" max="100" value="90">
-                        <span id="threshold-value">90%</span>
-                    </label>
+                    <!-- Search Options -->
+                    <div class="search-options">
+                        <label class="search-option">
+                            <input type="checkbox" id="enable-live-search" checked>
+                            <span>Enable live web search</span>
+                        </label>
+                        <label class="search-option">
+                            <span>Confidence threshold:</span>
+                            <input type="range" id="confidence-threshold" min="0" max="100" value="90">
+                            <span class="threshold-value" id="threshold-value">90%</span>
+                        </label>
+                    </div>
                 </div>
             </section>
 
-            <!-- Loading Indicator -->
-            <div id="loading" class="loading hidden">
-                <div class="spinner"></div>
-                <p class="loading-text">Searching for products...</p>
+            <!-- Loading Section -->
+            <section id="loading-section" class="loading-section hidden">
+                <div class="loading-spinner"></div>
+                <h3 class="loading-title">Searching for products...</h3>
                 <p class="loading-status" id="loading-status">Initializing search</p>
                 <div class="loading-steps">
                     <div class="loading-step" id="step-extract">
-                        <span class="step-icon">1</span>
+                        <span class="step-indicator">1</span>
                         <span>Analyzing query</span>
                     </div>
                     <div class="loading-step" id="step-search">
-                        <span class="step-icon">2</span>
+                        <span class="step-indicator">2</span>
                         <span>Searching database</span>
                     </div>
                     <div class="loading-step" id="step-rank">
-                        <span class="step-icon">3</span>
+                        <span class="step-indicator">3</span>
                         <span>Ranking results</span>
                     </div>
                 </div>
                 <p class="loading-time" id="loading-time"></p>
-            </div>
+            </section>
+
+            <!-- Error Section -->
+            <section id="error-section" class="error-section hidden">
+                <span class="error-icon">⚠️</span>
+                <p class="error-message" id="error-message"></p>
+            </section>
 
             <!-- Results Section -->
             <section id="results-section" class="results-section hidden">
                 <div class="results-header">
-                    <h2>Results</h2>
+                    <h2 class="results-title">Search Results</h2>
                     <div class="results-meta">
-                        <span id="result-count"></span>
-                        <span id="processing-time"></span>
+                        <span class="results-meta-item">
+                            <span class="meta-icon">📦</span>
+                            <span id="result-count">0 results</span>
+                        </span>
+                        <span class="results-meta-item">
+                            <span class="meta-icon">⚡</span>
+                            <span id="processing-time">0ms</span>
+                        </span>
                     </div>
                 </div>
 
-                <div class="query-info" id="query-info">
-                    <!-- Query info will be populated by JS -->
+                <!-- Query Info Card -->
+                <div class="query-info-card" id="query-info">
+                    <!-- Populated by JavaScript -->
                 </div>
 
+                <!-- Results Grid -->
                 <div class="results-grid" id="results-grid">
-                    <!-- Results will be populated by JS -->
+                    <!-- Product cards populated by JavaScript -->
                 </div>
             </section>
-
-            <!-- Error Section -->
-            <div id="error-section" class="error-section hidden">
-                <p id="error-message"></p>
-            </div>
 
             <!-- Contribute Section -->
             <section class="contribute-section">
                 <button class="contribute-toggle" onclick="toggleContributeForm()">
-                    + Contribute a Product
+                    <span>➕</span>
+                    <span>Contribute a Product</span>
                 </button>
                 <div id="contribute-form" class="contribute-form hidden">
-                    <h3>Add a Product to the Database</h3>
-                    <p class="contribute-desc">Help improve search results by adding products you know about.</p>
+                    <div class="contribute-header">
+                        <h3 class="contribute-title">Add a Product to the Database</h3>
+                        <p class="contribute-desc">Help improve search results by adding products you know about.</p>
+                    </div>
                     <form id="product-contribute-form" onsubmit="submitProduct(event)">
-                        <div class="form-row">
-                            <input type="text" id="contrib-name" placeholder="Product name *" required>
-                            <input type="text" id="contrib-brand" placeholder="Brand">
+                        <div class="contribute-grid">
+                            <input type="text" id="contrib-name" class="contribute-input" placeholder="Product name *" required>
+                            <input type="text" id="contrib-brand" class="contribute-input" placeholder="Brand">
+                            <input type="number" id="contrib-price" class="contribute-input" placeholder="Price" step="0.01" min="0">
+                            <input type="text" id="contrib-merchant" class="contribute-input" placeholder="Store/Merchant">
+                            <input type="url" id="contrib-url" class="contribute-input" placeholder="Product page URL">
+                            <input type="url" id="contrib-image" class="contribute-input" placeholder="Image URL">
+                            <input type="text" id="contrib-category" class="contribute-input" placeholder="Category (e.g., Electronics)">
                         </div>
-                        <div class="form-row">
-                            <input type="number" id="contrib-price" placeholder="Price" step="0.01" min="0">
-                            <input type="text" id="contrib-merchant" placeholder="Store/Merchant">
-                        </div>
-                        <div class="form-row">
-                            <input type="url" id="contrib-url" placeholder="Product page URL">
-                            <input type="url" id="contrib-image" placeholder="Image URL">
-                        </div>
-                        <div class="form-row">
-                            <input type="text" id="contrib-category" placeholder="Category (e.g., Electronics)">
+                        <div class="contribute-actions">
                             <button type="submit" class="contribute-btn">Add Product</button>
                         </div>
                     </form>
@@ -153,13 +207,13 @@
             </section>
         </main>
 
-        <footer>
-            <p>Powered by multi-agent AI with LangGraph</p>
-            <p>
-                <a href="/docs" target="_blank">API Documentation</a>
-                <span class="footer-separator">|</span>
-                <a href="https://smith.langchain.com/o/default/projects/p/price-compare" target="_blank" id="langsmith-link">View Traces (LangSmith)</a>
-            </p>
+        <!-- Footer -->
+        <footer class="footer">
+            <p class="footer-text">Powered by multi-agent AI with LangGraph</p>
+            <div class="footer-links">
+                <a href="/docs" target="_blank" class="footer-link">API Documentation</a>
+                <a href="https://smith.langchain.com/o/default/projects/p/price-compare" target="_blank" class="footer-link" id="langsmith-link">View Traces (LangSmith)</a>
+            </div>
         </footer>
     </div>
 

@@ -254,6 +254,11 @@ Respond in JSON format:
         Returns:
             Dictionary with extracted product properties
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"extract_product_from_text called with: '{text[:50]}'")
+
         system_prompt = """You are a product information extractor.
 Extract product details from user queries and return structured JSON."""
 
@@ -273,12 +278,14 @@ Return JSON with these fields (use null for unknown):
     "attributes": {{"key": "value"}}
 }}"""
 
+        logger.info("Calling LLM complete()...")
         response = await self.complete(
             prompt,
             system_prompt=system_prompt,
             provider="openai",
             temperature=0.0,
         )
+        logger.info(f"LLM response received: {response[:100]}...")
 
         import json
         try:

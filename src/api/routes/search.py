@@ -176,3 +176,106 @@ async def get_search_stats():
     except Exception as e:
         logger.error(f"Failed to get search stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/search/debug")
+async def debug_llm():
+    """
+    Debug endpoint to test LLM connectivity and diagnose issues.
+    """
+    from src.config.settings import get_settings
+    from src.services.llm_service import LLMService
+
+    results = {
+        "api_keys": {},
+        "llm_test": {},
+        "embedding_test": {},
+        "errors": [],
+    }
+
+    # Check API keys
+    try:
+        settings = get_settings()
+        openai_key = settings.openai_api_key.get_secret_value()
+        anthropic_key = settings.anthropic_api_key.get_secret_value()
+        tavily_key = settings.tavily_api_key.get_secret_value()
+
+        results["api_keys"] = {
+            "openai": "configured" if openai_key and len(openai_key) > 10 else "missing or invalid",
+            "openai_prefix": openai_key[:7] + "..." if openai_key and len(openai_key) > 10 else "N/A",
+            "anthropic": "configured" if anthropic_key and len(anthropic_key) > 10 else "missing",
+            "tavily": "configured" if tavily_key and len(tavily_key) > 10 else "missing",
+        }
+    except Exception as e:
+        results["errors"].append(f"Settings error: {str(e)}")
+
+    # Test LLM call
+    try:
+        llm = LLMService()
+        logger.info("Testing LLM with simple prompt...")
+
+        response = await llm.complete(
+            prompt="What is 2+2? Reply with just the number.",
+            system_prompt="You are a helpful assistant. Be brief.",
+            provider="openai",
+            max_tokens=10,
+        )
+
+        results["llm_test"] = {
+            "status": "success",
+            "response": response.strip(),
+            "model": "gpt-4o-mini",
+        }
+    except Exception as e:
+        results["llm_test"] = {
+            "status": "failed",
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
+        results["errors"].append(f"LLM test failed: {str(e)}")
+        logger.error(f"LLM test failed: {e}", exc_info=True)
+
+    # Test embedding
+    try:
+        from src.services.embedding_service import EmbeddingService
+        embeddings = EmbeddingService()
+
+        embedding = await embeddings.embed_text_async("test product")
+
+        results["embedding_test"] = {
+            "status": "success",
+            "dimensions": len(embedding),
+        }
+    except Exception as e:
+        results["embedding_test"] = {
+            "status": "failed",
+            "error": str(e),
+        }
+        results["errors"].append(f"Embedding test failed: {str(e)}")
+
+    # Test property extraction (full flow)
+    try:
+        from src.agents.property_extractor import PropertyExtractorAgent
+
+        extractor = PropertyExtractorAgent()
+        state = {
+            "user_input": "iPhone 15 Pro Max",
+            "input_type": "text",
+        }
+
+        result = await extractor.execute(state)
+
+        results["extraction_test"] = {
+            "status": "success" if not result.get("extraction_error") else "failed",
+            "extracted_properties": result.get("extracted_properties"),
+            "confidence": result.get("extraction_confidence"),
+            "error": result.get("extraction_error"),
+        }
+    except Exception as e:
+        results["extraction_test"] = {
+            "status": "failed",
+            "error": str(e),
+        }
+        results["errors"].append(f"Extraction test failed: {str(e)}")
+
+    return results

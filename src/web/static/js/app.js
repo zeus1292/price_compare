@@ -1,29 +1,39 @@
 /**
  * Price Compare - Frontend Application
+ * Dark Theme Amazon-Style UI
  */
 
 const API_BASE = '/api/v1';
 
+// State
+let currentQuery = '';
+let currentInputType = 'text';
+let loadingStartTime = null;
+let loadingTimer = null;
+let isSearchCollapsed = false;
+
 // DOM Elements
+const searchModule = document.getElementById('search-module');
+const searchHeader = document.getElementById('search-header');
+const searchBody = document.getElementById('search-body');
+const searchQueryPreview = document.getElementById('search-query-preview');
 const textSearchForm = document.getElementById('text-search-form');
 const urlSearchForm = document.getElementById('url-search-form');
 const imageSearchForm = document.getElementById('image-search-form');
 const textQuery = document.getElementById('text-query');
 const urlQuery = document.getElementById('url-query');
 const imageQuery = document.getElementById('image-query');
+const fileUploadArea = document.getElementById('file-upload-area');
 const imagePreview = document.getElementById('image-preview');
 const enableLiveSearch = document.getElementById('enable-live-search');
 const confidenceThreshold = document.getElementById('confidence-threshold');
 const thresholdValue = document.getElementById('threshold-value');
-const loadingSection = document.getElementById('loading');
+const loadingSection = document.getElementById('loading-section');
 const loadingStatus = document.getElementById('loading-status');
 const loadingTime = document.getElementById('loading-time');
 const stepExtract = document.getElementById('step-extract');
 const stepSearch = document.getElementById('step-search');
 const stepRank = document.getElementById('step-rank');
-
-let loadingStartTime = null;
-let loadingTimer = null;
 const resultsSection = document.getElementById('results-section');
 const resultCount = document.getElementById('result-count');
 const processingTime = document.getElementById('processing-time');
@@ -34,9 +44,52 @@ const errorMessage = document.getElementById('error-message');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
-// Tab switching
+// ========================================
+// SEARCH MODULE COLLAPSE/EXPAND
+// ========================================
+
+function toggleSearchModule() {
+    isSearchCollapsed = !isSearchCollapsed;
+
+    if (isSearchCollapsed) {
+        searchModule.classList.add('collapsed');
+        searchHeader.classList.add('collapsed');
+
+        // Show query preview when collapsed
+        if (currentQuery) {
+            searchQueryPreview.textContent = `"${currentQuery}"`;
+            searchQueryPreview.classList.remove('hidden');
+        }
+    } else {
+        searchModule.classList.remove('collapsed');
+        searchHeader.classList.remove('collapsed');
+        searchQueryPreview.classList.add('hidden');
+    }
+}
+
+function collapseSearchWithQuery(query) {
+    currentQuery = query;
+    isSearchCollapsed = true;
+    searchModule.classList.add('collapsed');
+    searchHeader.classList.add('collapsed');
+    searchQueryPreview.textContent = `"${query}"`;
+    searchQueryPreview.classList.remove('hidden');
+}
+
+function expandSearch() {
+    isSearchCollapsed = false;
+    searchModule.classList.remove('collapsed');
+    searchHeader.classList.remove('collapsed');
+    searchQueryPreview.classList.add('hidden');
+}
+
+// ========================================
+// TAB SWITCHING
+// ========================================
+
 tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering collapse
         const tab = button.dataset.tab;
 
         tabButtons.forEach(btn => btn.classList.remove('active'));
@@ -44,27 +97,63 @@ tabButtons.forEach(button => {
 
         button.classList.add('active');
         document.getElementById(`${tab}-tab`).classList.add('active');
+
+        currentInputType = tab;
     });
 });
 
-// Confidence threshold slider
+// ========================================
+// CONFIDENCE THRESHOLD SLIDER
+// ========================================
+
 confidenceThreshold.addEventListener('input', () => {
     thresholdValue.textContent = `${confidenceThreshold.value}%`;
 });
 
-// Image preview
-imageQuery.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-        };
-        reader.readAsDataURL(file);
+// ========================================
+// FILE UPLOAD & DRAG-DROP
+// ========================================
+
+// Drag and drop handlers
+fileUploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    fileUploadArea.classList.add('dragover');
+});
+
+fileUploadArea.addEventListener('dragleave', () => {
+    fileUploadArea.classList.remove('dragover');
+});
+
+fileUploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fileUploadArea.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.startsWith('image/')) {
+        imageQuery.files = files;
+        handleImagePreview(files[0]);
     }
 });
 
-// Search handlers
+imageQuery.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        handleImagePreview(file);
+    }
+});
+
+function handleImagePreview(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+    };
+    reader.readAsDataURL(file);
+}
+
+// ========================================
+// SEARCH HANDLERS
+// ========================================
+
 textSearchForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const query = textQuery.value.trim();
@@ -94,6 +183,7 @@ async function performSearch(query, inputType) {
     showLoading();
     hideError();
     hideResults();
+    collapseSearchWithQuery(query);
 
     try {
         const response = await fetch(`${API_BASE}/search`, {
@@ -119,6 +209,7 @@ async function performSearch(query, inputType) {
 
     } catch (error) {
         showError(error.message);
+        expandSearch();
     } finally {
         hideLoading();
     }
@@ -129,6 +220,7 @@ async function performImageSearch(file) {
     showLoading();
     hideError();
     hideResults();
+    collapseSearchWithQuery(`Image: ${file.name}`);
 
     try {
         const formData = new FormData();
@@ -151,39 +243,77 @@ async function performImageSearch(file) {
 
     } catch (error) {
         showError(error.message);
+        expandSearch();
     } finally {
         hideLoading();
     }
 }
 
-// Display results
+// ========================================
+// DISPLAY RESULTS
+// ========================================
+
 function displayResults(data) {
     const results = data.results || [];
 
     // Update counts
-    resultCount.textContent = `${results.length} results found`;
+    resultCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
     processingTime.textContent = `${data.processing_time_ms}ms`;
 
     // Update query info
     const qi = data.query_info || {};
     const props = qi.extracted_properties || {};
 
-    let queryInfoHtml = '<strong>Query:</strong> ';
-    if (props.name) queryInfoHtml += props.name;
-    if (props.brand) queryInfoHtml += ` | Brand: ${props.brand}`;
-    if (props.category) queryInfoHtml += ` | Category: ${props.category}`;
-    queryInfoHtml += `<br><strong>Method:</strong> ${qi.search_method || 'N/A'}`;
-    if (qi.live_search_triggered) {
-        queryInfoHtml += ' | <span style="color: var(--warning-color);">Live search triggered</span>';
+    let queryInfoHtml = '<div class="query-info-row">';
+
+    if (props.name) {
+        queryInfoHtml += `
+            <div class="query-info-item">
+                <span class="query-info-label">Query:</span>
+                <span class="query-info-value">${escapeHtml(props.name)}</span>
+            </div>`;
     }
+
+    if (props.brand) {
+        queryInfoHtml += `
+            <div class="query-info-item">
+                <span class="query-info-label">Brand:</span>
+                <span class="query-info-value">${escapeHtml(props.brand)}</span>
+            </div>`;
+    }
+
+    if (props.category) {
+        queryInfoHtml += `
+            <div class="query-info-item">
+                <span class="query-info-label">Category:</span>
+                <span class="query-info-value">${escapeHtml(props.category)}</span>
+            </div>`;
+    }
+
+    queryInfoHtml += `
+        <div class="query-info-item">
+            <span class="query-info-label">Method:</span>
+            <span class="query-info-value">${qi.search_method || 'N/A'}</span>
+        </div>`;
+
+    if (qi.live_search_triggered) {
+        queryInfoHtml += `
+            <div class="query-info-item">
+                <span class="query-info-value live-search">Live search triggered</span>
+            </div>`;
+    }
+
+    queryInfoHtml += '</div>';
+
     // Add trace link if available
     if (data.trace_id) {
         const traceUrl = `https://smith.langchain.com/o/default/projects/p/price-compare/r/${data.trace_id}`;
-        queryInfoHtml += `<br><a href="${traceUrl}" target="_blank" class="trace-link">View trace in LangSmith</a>`;
+        queryInfoHtml += `<a href="${traceUrl}" target="_blank" class="trace-link">View trace in LangSmith</a>`;
     }
+
     queryInfo.innerHTML = queryInfoHtml;
 
-    // Display results
+    // Display results grid
     resultsGrid.innerHTML = results.map(product => createProductCard(product)).join('');
 
     showResults();
@@ -206,28 +336,31 @@ function createProductCard(product) {
     const initials = name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
     const placeholderColor = stringToColor(name);
 
-    const imageHtml = imageUrl
-        ? `<img src="${imageUrl}" alt="${name}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background-color: ${placeholderColor}\\'>${initials}</div>'">`
-        : `<div class="product-image placeholder" style="background-color: ${placeholderColor}">${initials}</div>`;
+    const badgeClass = source === 'live' ? 'live' : 'db';
+    const badgeText = source === 'live' ? 'Live' : 'DB';
 
-    const linkHtml = sourceUrl
-        ? `<a href="${sourceUrl}" target="_blank" class="product-link">View Product</a>`
-        : '';
+    const imageHtml = imageUrl
+        ? `<img src="${imageUrl}" alt="${escapeHtml(name)}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background: ${placeholderColor}\\'>${initials}</div>'">`
+        : `<div class="product-image placeholder" style="background: ${placeholderColor}">${initials}</div>`;
 
     return `
-        <div class="product-card">
-            ${imageHtml}
+        <article class="product-card">
+            <div class="product-image-container">
+                ${imageHtml}
+                <span class="product-badge ${badgeClass}">${badgeText}</span>
+            </div>
             <div class="product-info">
                 <h3 class="product-name">${escapeHtml(name)}</h3>
                 <p class="product-price">${price}</p>
                 <p class="product-merchant">${escapeHtml(merchant)}</p>
-                <span class="confidence-badge ${confidenceClass}">
-                    ${(confidence * 100).toFixed(0)}% match
-                </span>
-                <p class="product-source">Source: ${source}</p>
+                <div class="product-footer">
+                    <span class="confidence-badge ${confidenceClass}">
+                        ${(confidence * 100).toFixed(0)}% match
+                    </span>
+                    ${sourceUrl ? `<a href="${sourceUrl}" target="_blank" class="product-link">View Product</a>` : ''}
+                </div>
             </div>
-            ${linkHtml}
-        </div>
+        </article>
     `;
 }
 
@@ -238,10 +371,13 @@ function stringToColor(str) {
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
     const hue = hash % 360;
-    return `hsl(${hue}, 65%, 75%)`;
+    return `linear-gradient(135deg, hsl(${hue}, 60%, 45%), hsl(${(hue + 40) % 360}, 50%, 35%))`;
 }
 
-// Utility functions
+// ========================================
+// UTILITY FUNCTIONS
+// ========================================
+
 function formatPrice(price, currency = 'USD') {
     const symbols = {
         'USD': '$',
@@ -259,6 +395,10 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// ========================================
+// LOADING STATE
+// ========================================
 
 function showLoading() {
     loadingSection.classList.remove('hidden');
@@ -307,11 +447,15 @@ function updateLoadingStep(step) {
         }
     });
 
-    // Auto-advance steps for demo (in real app, this would be driven by server events)
+    // Auto-advance steps for demo
     if (step < 3) {
         setTimeout(() => updateLoadingStep(step + 1), 1500);
     }
 }
+
+// ========================================
+// SHOW/HIDE SECTIONS
+// ========================================
 
 function showResults() {
     resultsSection.classList.remove('hidden');
@@ -330,7 +474,10 @@ function hideError() {
     errorSection.classList.add('hidden');
 }
 
-// Contribute form functions
+// ========================================
+// CONTRIBUTE FORM
+// ========================================
+
 function toggleContributeForm() {
     const form = document.getElementById('contribute-form');
     form.classList.toggle('hidden');
@@ -382,7 +529,31 @@ async function submitProduct(event) {
     }
 }
 
-// Initialize
+// ========================================
+// KEYBOARD SHORTCUTS
+// ========================================
+
+document.addEventListener('keydown', (e) => {
+    // Press '/' to focus search
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        expandSearch();
+        textQuery.focus();
+    }
+
+    // Press 'Escape' to collapse search
+    if (e.key === 'Escape' && !isSearchCollapsed) {
+        collapseSearchWithQuery(currentQuery);
+    }
+});
+
+// ========================================
+// INITIALIZE
+// ========================================
+
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Price Compare initialized');
+    console.log('Price Compare initialized - Dark Theme');
+
+    // Focus text input on load
+    textQuery.focus();
 });
