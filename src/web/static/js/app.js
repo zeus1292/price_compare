@@ -1,13 +1,14 @@
 /**
  * Price Compare - Frontend Application
- * Dark Theme Amazon-Style UI
+ * Unified Input with Auto-Detection
  */
 
 const API_BASE = '/api/v1';
 
 // State
 let currentQuery = '';
-let currentInputType = 'text';
+let detectedInputType = 'text';
+let selectedImageFile = null;
 let loadingStartTime = null;
 let loadingTimer = null;
 let isSearchCollapsed = false;
@@ -17,14 +18,16 @@ const searchModule = document.getElementById('search-module');
 const searchHeader = document.getElementById('search-header');
 const searchBody = document.getElementById('search-body');
 const searchQueryPreview = document.getElementById('search-query-preview');
-const textSearchForm = document.getElementById('text-search-form');
-const urlSearchForm = document.getElementById('url-search-form');
-const imageSearchForm = document.getElementById('image-search-form');
-const textQuery = document.getElementById('text-query');
-const urlQuery = document.getElementById('url-query');
-const imageQuery = document.getElementById('image-query');
-const fileUploadArea = document.getElementById('file-upload-area');
+const searchForm = document.getElementById('search-form');
+const searchInput = document.getElementById('search-input');
+const searchBtn = document.getElementById('search-btn');
+const inputTypeBadge = document.getElementById('input-type-badge');
+const imageDropZone = document.getElementById('image-drop-zone');
+const imageInput = document.getElementById('image-input');
+const dropZoneContent = document.getElementById('drop-zone-content');
+const imagePreviewContainer = document.getElementById('image-preview-container');
 const imagePreview = document.getElementById('image-preview');
+const removeImageBtn = document.getElementById('remove-image-btn');
 const enableLiveSearch = document.getElementById('enable-live-search');
 const confidenceThreshold = document.getElementById('confidence-threshold');
 const thresholdValue = document.getElementById('threshold-value');
@@ -41,8 +44,157 @@ const queryInfo = document.getElementById('query-info');
 const resultsGrid = document.getElementById('results-grid');
 const errorSection = document.getElementById('error-section');
 const errorMessage = document.getElementById('error-message');
-const tabButtons = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
+
+// ========================================
+// INPUT TYPE AUTO-DETECTION
+// ========================================
+
+const URL_PATTERN = /^(https?:\/\/|www\.)/i;
+
+function detectInputType(value) {
+    if (!value || value.trim() === '') {
+        return 'text';
+    }
+
+    if (URL_PATTERN.test(value.trim())) {
+        return 'url';
+    }
+
+    return 'text';
+}
+
+function updateInputTypeBadge(type) {
+    detectedInputType = type;
+
+    // Update badge text and class
+    inputTypeBadge.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    inputTypeBadge.className = 'input-type-badge ' + type;
+
+    // Update input styling
+    searchInput.classList.remove('url-detected');
+    if (type === 'url') {
+        searchInput.classList.add('url-detected');
+    }
+}
+
+// Real-time input detection
+searchInput.addEventListener('input', (e) => {
+    const value = e.target.value;
+
+    // If we have an image selected, clear it when user starts typing
+    if (selectedImageFile && value.trim() !== '') {
+        clearSelectedImage();
+    }
+
+    const type = detectInputType(value);
+    updateInputTypeBadge(type);
+});
+
+// ========================================
+// IMAGE HANDLING
+// ========================================
+
+function setSelectedImage(file) {
+    selectedImageFile = file;
+    detectedInputType = 'image';
+
+    // Update badge
+    inputTypeBadge.textContent = 'Image';
+    inputTypeBadge.className = 'input-type-badge image';
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imagePreview.src = e.target.result;
+        dropZoneContent.classList.add('hidden');
+        imagePreviewContainer.classList.remove('hidden');
+        imageDropZone.classList.add('has-image');
+    };
+    reader.readAsDataURL(file);
+
+    // Clear text input
+    searchInput.value = '';
+    searchInput.placeholder = 'Image selected - click Search or enter text to search';
+}
+
+function clearSelectedImage() {
+    selectedImageFile = null;
+    imageInput.value = '';
+    imagePreview.src = '';
+    dropZoneContent.classList.remove('hidden');
+    imagePreviewContainer.classList.add('hidden');
+    imageDropZone.classList.remove('has-image');
+
+    // Reset to text mode
+    updateInputTypeBadge('text');
+    searchInput.placeholder = 'Search by product name, paste a URL, or drop an image...';
+}
+
+// Image input change
+imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        setSelectedImage(file);
+    }
+});
+
+// Click on drop zone to trigger file input
+imageDropZone.addEventListener('click', () => {
+    if (!selectedImageFile) {
+        imageInput.click();
+    }
+});
+
+// Remove image button
+removeImageBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearSelectedImage();
+    searchInput.focus();
+});
+
+// Drag and drop
+imageDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    imageDropZone.classList.add('dragover');
+});
+
+imageDropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    imageDropZone.classList.remove('dragover');
+});
+
+imageDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    imageDropZone.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.startsWith('image/')) {
+        setSelectedImage(files[0]);
+    }
+});
+
+// Also allow dropping on the entire input container
+const unifiedInputContainer = document.getElementById('unified-input-container');
+unifiedInputContainer.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    imageDropZone.classList.add('dragover');
+});
+
+unifiedInputContainer.addEventListener('dragleave', (e) => {
+    if (!unifiedInputContainer.contains(e.relatedTarget)) {
+        imageDropZone.classList.remove('dragover');
+    }
+});
+
+unifiedInputContainer.addEventListener('drop', (e) => {
+    e.preventDefault();
+    imageDropZone.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.startsWith('image/')) {
+        setSelectedImage(files[0]);
+    }
+});
 
 // ========================================
 // SEARCH MODULE COLLAPSE/EXPAND
@@ -55,7 +207,6 @@ function toggleSearchModule() {
         searchModule.classList.add('collapsed');
         searchHeader.classList.add('collapsed');
 
-        // Show query preview when collapsed
         if (currentQuery) {
             searchQueryPreview.textContent = `"${currentQuery}"`;
             searchQueryPreview.classList.remove('hidden');
@@ -84,25 +235,6 @@ function expandSearch() {
 }
 
 // ========================================
-// TAB SWITCHING
-// ========================================
-
-tabButtons.forEach(button => {
-    button.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent triggering collapse
-        const tab = button.dataset.tab;
-
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-
-        button.classList.add('active');
-        document.getElementById(`${tab}-tab`).classList.add('active');
-
-        currentInputType = tab;
-    });
-});
-
-// ========================================
 // CONFIDENCE THRESHOLD SLIDER
 // ========================================
 
@@ -111,79 +243,37 @@ confidenceThreshold.addEventListener('input', () => {
 });
 
 // ========================================
-// FILE UPLOAD & DRAG-DROP
+// UNIFIED SEARCH HANDLER
 // ========================================
 
-// Drag and drop handlers
-fileUploadArea.addEventListener('dragover', (e) => {
+searchForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    fileUploadArea.classList.add('dragover');
-});
 
-fileUploadArea.addEventListener('dragleave', () => {
-    fileUploadArea.classList.remove('dragover');
-});
+    // Determine what to search
+    if (selectedImageFile) {
+        // Image search
+        await performImageSearch(selectedImageFile);
+    } else {
+        const query = searchInput.value.trim();
+        if (!query) {
+            showError('Please enter a product name, URL, or upload an image');
+            return;
+        }
 
-fileUploadArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    fileUploadArea.classList.remove('dragover');
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type.startsWith('image/')) {
-        imageQuery.files = files;
-        handleImagePreview(files[0]);
+        // Auto-detect type and search
+        const inputType = detectInputType(query);
+        await performSearch(query, inputType);
     }
 });
 
-imageQuery.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        handleImagePreview(file);
-    }
-});
-
-function handleImagePreview(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-    };
-    reader.readAsDataURL(file);
-}
-
-// ========================================
-// SEARCH HANDLERS
-// ========================================
-
-textSearchForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const query = textQuery.value.trim();
-    if (query) {
-        await performSearch(query, 'text');
-    }
-});
-
-urlSearchForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const query = urlQuery.value.trim();
-    if (query) {
-        await performSearch(query, 'url');
-    }
-});
-
-imageSearchForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const file = imageQuery.files[0];
-    if (file) {
-        await performImageSearch(file);
-    }
-});
-
-// Main search function
+// Main search function (text or URL)
 async function performSearch(query, inputType) {
     showLoading();
     hideError();
     hideResults();
-    collapseSearchWithQuery(query);
+
+    const displayQuery = inputType === 'url' ? 'URL: ' + new URL(query).hostname : query;
+    collapseSearchWithQuery(displayQuery);
 
     try {
         const response = await fetch(`${API_BASE}/search`, {
@@ -515,7 +605,6 @@ async function submitProduct(event) {
                 : `Product already exists in the database.`;
             resultDiv.classList.remove('hidden');
 
-            // Clear form if new product
             if (result.created) {
                 document.getElementById('product-contribute-form').reset();
             }
@@ -538,13 +627,44 @@ document.addEventListener('keydown', (e) => {
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
         e.preventDefault();
         expandSearch();
-        textQuery.focus();
+        searchInput.focus();
     }
 
-    // Press 'Escape' to collapse search
-    if (e.key === 'Escape' && !isSearchCollapsed) {
-        collapseSearchWithQuery(currentQuery);
+    // Press 'Escape' to collapse search or clear image
+    if (e.key === 'Escape') {
+        if (selectedImageFile) {
+            clearSelectedImage();
+        } else if (!isSearchCollapsed) {
+            collapseSearchWithQuery(currentQuery);
+        }
     }
+});
+
+// ========================================
+// PASTE HANDLER (for URLs and images)
+// ========================================
+
+searchInput.addEventListener('paste', (e) => {
+    // Check if pasting an image from clipboard
+    const items = e.clipboardData?.items;
+    if (items) {
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                    setSelectedImage(file);
+                }
+                return;
+            }
+        }
+    }
+
+    // For text paste, let it happen naturally and detect on next tick
+    setTimeout(() => {
+        const type = detectInputType(searchInput.value);
+        updateInputTypeBadge(type);
+    }, 0);
 });
 
 // ========================================
@@ -552,8 +672,11 @@ document.addEventListener('keydown', (e) => {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Price Compare initialized - Dark Theme');
+    console.log('Price Compare initialized - Unified Input');
 
     // Focus text input on load
-    textQuery.focus();
+    searchInput.focus();
+
+    // Initialize badge
+    updateInputTypeBadge('text');
 });

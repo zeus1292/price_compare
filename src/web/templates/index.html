@@ -34,91 +34,57 @@
                     </button>
                 </div>
 
-                <!-- Search Body -->
+                <!-- Search Body - Unified Input -->
                 <div class="search-body" id="search-body">
-                    <!-- Search Tabs -->
-                    <div class="search-tabs">
-                        <button class="tab-btn active" data-tab="text">
-                            <span class="tab-icon">📝</span>
-                            Text Search
-                        </button>
-                        <button class="tab-btn" data-tab="url">
-                            <span class="tab-icon">🔗</span>
-                            URL Search
-                        </button>
-                        <button class="tab-btn" data-tab="image">
-                            <span class="tab-icon">📷</span>
-                            Image Search
-                        </button>
-                    </div>
-
-                    <!-- Text Search Tab -->
-                    <div class="tab-content active" id="text-tab">
-                        <form id="text-search-form" class="search-form">
-                            <div class="search-input-wrapper">
-                                <span class="search-input-icon">🔍</span>
-                                <input
-                                    type="text"
-                                    id="text-query"
-                                    class="search-input"
-                                    placeholder="Search for any product... (e.g., iPhone 15 Pro, Sony headphones)"
-                                    autocomplete="off"
-                                >
+                    <form id="search-form" class="unified-search-form">
+                        <!-- Main Input Area -->
+                        <div class="unified-input-container" id="unified-input-container">
+                            <!-- Text/URL Input -->
+                            <div class="input-row">
+                                <div class="search-input-wrapper">
+                                    <span class="search-input-icon">🔍</span>
+                                    <input
+                                        type="text"
+                                        id="search-input"
+                                        class="search-input"
+                                        placeholder="Search by product name, paste a URL, or drop an image..."
+                                        autocomplete="off"
+                                    >
+                                    <span class="input-type-badge" id="input-type-badge">Text</span>
+                                </div>
+                                <button type="submit" class="search-btn" id="search-btn">
+                                    <span>Search</span>
+                                </button>
                             </div>
-                            <button type="submit" class="search-btn">
-                                <span>Search</span>
-                            </button>
-                        </form>
-                    </div>
 
-                    <!-- URL Search Tab -->
-                    <div class="tab-content" id="url-tab">
-                        <form id="url-search-form" class="search-form">
-                            <div class="search-input-wrapper">
-                                <span class="search-input-icon">🔗</span>
-                                <input
-                                    type="url"
-                                    id="url-query"
-                                    class="search-input"
-                                    placeholder="Paste a product URL from any store..."
-                                >
+                            <!-- Image Drop Zone (inline, subtle) -->
+                            <div class="image-drop-zone" id="image-drop-zone">
+                                <input type="file" id="image-input" accept="image/*" class="hidden">
+                                <div class="drop-zone-content" id="drop-zone-content">
+                                    <span class="drop-icon">📷</span>
+                                    <span class="drop-text">or drop an image here</span>
+                                </div>
+                                <!-- Image Preview (shown when image selected) -->
+                                <div class="image-preview-container hidden" id="image-preview-container">
+                                    <img id="image-preview" src="" alt="Preview">
+                                    <button type="button" class="remove-image-btn" id="remove-image-btn" title="Remove image">✕</button>
+                                </div>
                             </div>
-                            <button type="submit" class="search-btn">
-                                <span>Search</span>
-                            </button>
-                        </form>
-                    </div>
+                        </div>
 
-                    <!-- Image Search Tab -->
-                    <div class="tab-content" id="image-tab">
-                        <form id="image-search-form" class="search-form">
-                            <div class="file-upload-area" id="file-upload-area">
-                                <input type="file" id="image-query" accept="image/*">
-                                <span class="upload-icon">📷</span>
-                                <p class="upload-text">
-                                    <strong>Click to upload</strong> or drag and drop<br>
-                                    PNG, JPG, WEBP up to 10MB
-                                </p>
-                                <div id="image-preview"></div>
-                            </div>
-                            <button type="submit" class="search-btn">
-                                <span>Search</span>
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- Search Options -->
-                    <div class="search-options">
-                        <label class="search-option">
-                            <input type="checkbox" id="enable-live-search" checked>
-                            <span>Enable live web search</span>
-                        </label>
-                        <label class="search-option">
-                            <span>Confidence threshold:</span>
-                            <input type="range" id="confidence-threshold" min="0" max="100" value="90">
-                            <span class="threshold-value" id="threshold-value">90%</span>
-                        </label>
-                    </div>
+                        <!-- Search Options -->
+                        <div class="search-options">
+                            <label class="search-option">
+                                <input type="checkbox" id="enable-live-search" checked>
+                                <span>Enable live web search</span>
+                            </label>
+                            <label class="search-option">
+                                <span>Confidence threshold:</span>
+                                <input type="range" id="confidence-threshold" min="0" max="100" value="90">
+                                <span class="threshold-value" id="threshold-value">90%</span>
+                            </label>
+                        </div>
+                    </form>
                 </div>
             </section>
 

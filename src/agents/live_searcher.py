@@ -1,9 +1,17 @@
 """
 Live Search Agent using Tavily for web search.
+
+Optimized for speed with:
+- Parallel LLM calls for result parsing
+- Basic search depth option for faster results
+- Heuristic-based extraction as fallback
 """
+import asyncio
 import logging
+import re
 import time
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from langsmith import traceable
 from tavily import TavilyClient
@@ -54,6 +62,7 @@ class LiveSearcherAgent(BaseAgent):
 
         Args:
             state: Must contain 'extracted_properties'
+                   Optional 'fast_mode' (default True) - use heuristics instead of LLM
 
         Returns:
             State with 'live_search_results' and metadata
@@ -68,25 +77,34 @@ class LiveSearcherAgent(BaseAgent):
             })
 
         properties = state["extracted_properties"]
+        fast_mode = state.get("fast_mode", True)  # Default to fast mode
         start_time = time.perf_counter()
 
         try:
             # Build search query
             search_query = self._build_search_query(properties)
-            logger.info(f"Live search query: {search_query}")
+            logger.info(f"Live search query: {search_query} (fast_mode={fast_mode})")
 
-            # Execute Tavily search
-            tavily_results = await self._tavily_search(search_query)
-
-            # Parse and extract product info from results
-            parsed_products = await self._parse_search_results(
-                tavily_results, properties
+            # Execute Tavily search (basic depth for speed)
+            tavily_results = await self._tavily_search(
+                search_query,
+                max_results=8,  # Fewer results for speed
+                search_depth="basic" if fast_mode else "advanced",
             )
+
+            # Parse results - fast mode uses heuristics, slow mode uses LLM
+            if fast_mode:
+                parsed_products = self._parse_results_fast(tavily_results, properties)
+            else:
+                parsed_products = await self._parse_results_with_llm(
+                    tavily_results, properties
+                )
 
             # Verify matches
             verified = self._verify_matches(parsed_products, properties)
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+            logger.info(f"Live search completed in {elapsed_ms}ms (fast_mode={fast_mode})")
 
             return self.update_state(state, {
                 "live_search_results": verified,
@@ -136,10 +154,16 @@ class LiveSearcherAgent(BaseAgent):
     async def _tavily_search(
         self,
         query: str,
-        max_results: int = 10,
+        max_results: int = 8,
+        search_depth: str = "basic",
     ) -> List[dict]:
         """
         Execute Tavily search.
+
+        Args:
+            query: Search query
+            max_results: Maximum results to return
+            search_depth: "basic" (fast) or "advanced" (thorough)
         """
         if not self.tavily_client:
             return []
@@ -147,9 +171,9 @@ class LiveSearcherAgent(BaseAgent):
         try:
             response = self.tavily_client.search(
                 query=query,
-                search_depth="advanced",
+                search_depth=search_depth,
                 max_results=max_results,
-                include_images=True,  # Include images in results
+                include_images=True,
                 include_domains=[
                     "amazon.com",
                     "ebay.com",
@@ -174,33 +198,125 @@ class LiveSearcherAgent(BaseAgent):
             logger.error(f"Tavily search error: {e}")
             return []
 
-    @traceable(name="parse_search_results")
-    async def _parse_search_results(
+    def _parse_results_fast(
         self,
         results: List[dict],
         query_properties: dict,
     ) -> List[dict]:
         """
-        Parse Tavily results and extract product information.
+        Fast parsing using heuristics instead of LLM.
+        Extracts product info from title, URL, and content using regex.
+        """
+        parsed = []
+        query_name = query_properties.get("name", "").lower()
+
+        for result in results:
+            title = result.get("title", "")
+            url = result.get("url", "")
+            content = result.get("content", "")
+            image_url = result.get("image_url")
+
+            if not title:
+                continue
+
+            # Extract price using regex
+            price = self._extract_price_fast(title + " " + content)
+
+            # Extract merchant from URL
+            merchant = self._extract_merchant_from_url(url)
+
+            # Calculate match confidence based on title similarity
+            confidence = self._calculate_similarity(query_name, title.lower())
+
+            parsed.append({
+                "name": title,
+                "price": price,
+                "currency": "USD",
+                "merchant": merchant,
+                "source_url": url,
+                "image_url": image_url,
+                "match_source": "live",
+                "match_confidence": confidence,
+            })
+
+        return parsed
+
+    def _extract_price_fast(self, text: str) -> Optional[float]:
+        """
+        Extract price from text using regex.
+        """
+        # Match patterns like $99.99, $1,234.56, USD 99.99
+        patterns = [
+            r'\$([0-9,]+\.?\d*)',
+            r'USD\s*([0-9,]+\.?\d*)',
+            r'Price:\s*\$?([0-9,]+\.?\d*)',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                try:
+                    price_str = match.group(1).replace(',', '')
+                    return float(price_str)
+                except ValueError:
+                    continue
+
+        return None
+
+    def _calculate_similarity(self, query: str, title: str) -> float:
+        """
+        Calculate simple similarity score between query and title.
+        """
+        if not query or not title:
+            return 0.5
+
+        # Simple word overlap scoring
+        query_words = set(query.lower().split())
+        title_words = set(title.lower().split())
+
+        if not query_words:
+            return 0.5
+
+        overlap = len(query_words & title_words)
+        score = overlap / len(query_words)
+
+        # Boost if query appears as substring
+        if query.lower() in title.lower():
+            score = min(1.0, score + 0.3)
+
+        return min(1.0, max(0.3, score))
+
+    async def _parse_results_with_llm(
+        self,
+        results: List[dict],
+        query_properties: dict,
+    ) -> List[dict]:
+        """
+        Parse results using LLM (slower but more accurate).
+        Uses parallel async calls for speed.
         """
         if not results:
             return []
 
-        parsed_products = []
+        # Create tasks for parallel execution
+        tasks = [
+            self._extract_product_from_result(result, query_properties)
+            for result in results
+        ]
 
-        for result in results:
-            try:
-                product = await self._extract_product_from_result(
-                    result, query_properties
-                )
-                if product:
-                    parsed_products.append(product)
+        # Execute all LLM calls in parallel
+        parsed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            except Exception as e:
-                logger.warning(f"Failed to parse result: {e}")
+        # Filter out exceptions and None results
+        products = []
+        for result in parsed_results:
+            if isinstance(result, Exception):
+                logger.warning(f"LLM parsing failed: {result}")
                 continue
+            if result is not None:
+                products.append(result)
 
-        return parsed_products
+        return products
 
     async def _extract_product_from_result(
         self,
@@ -277,8 +393,6 @@ Return null if this is not a product listing."""
         """
         Extract merchant name from URL.
         """
-        from urllib.parse import urlparse
-
         try:
             domain = urlparse(url).netloc
             # Remove www. and .com/.co.uk/etc

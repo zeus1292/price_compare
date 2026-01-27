@@ -28,6 +28,7 @@ class OrchestratorState(TypedDict, total=False):
     limit: int
     confidence_threshold: float
     enable_live_search: bool
+    fast_mode: bool  # Use fast heuristics instead of LLM for live search
 
     # Extraction phase
     extracted_properties: Optional[dict]
@@ -205,6 +206,7 @@ class Orchestrator:
 
         result = await self.searcher.execute({
             "extracted_properties": state.get("extracted_properties", {}),
+            "fast_mode": state.get("fast_mode", True),  # Default to fast mode
         })
 
         return {
@@ -289,6 +291,7 @@ class Orchestrator:
         limit: int = 10,
         confidence_threshold: Optional[float] = None,
         enable_live_search: bool = True,
+        fast_mode: bool = True,
     ) -> dict:
         """
         Execute the full search workflow.
@@ -299,6 +302,7 @@ class Orchestrator:
             limit: Maximum results to return
             confidence_threshold: Minimum confidence for results
             enable_live_search: Whether to enable live search fallback
+            fast_mode: Use fast heuristics for live search (default True)
 
         Returns:
             Dictionary with results and metadata
@@ -312,6 +316,7 @@ class Orchestrator:
             "limit": limit,
             "confidence_threshold": confidence_threshold or self.default_confidence_threshold,
             "enable_live_search": enable_live_search,
+            "fast_mode": fast_mode,
             "database_matches": [],
             "live_search_triggered": False,
             "live_search_results": [],
