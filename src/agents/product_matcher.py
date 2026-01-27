@@ -1,5 +1,9 @@
 """
 Product Matching Agent for searching the database.
+
+Supports:
+- Text-based hybrid search (SQL + OpenAI embeddings)
+- Image-based search (CLIP embeddings for direct visual similarity)
 """
 import logging
 from typing import List, Optional
@@ -69,6 +73,7 @@ class ProductMatcherAgent(BaseAgent):
 
         Args:
             state: Must contain 'extracted_properties'
+                   Optional 'image_embedding' for CLIP-based image search
 
         Returns:
             State with 'database_matches' and 'match_confidence'
@@ -76,18 +81,28 @@ class ProductMatcherAgent(BaseAgent):
         self.validate_state(state, ["extracted_properties"])
 
         properties = state["extracted_properties"]
+        image_embedding = state.get("image_embedding")
         limit = state.get("limit", 10)
         confidence_threshold = state.get("confidence_threshold", 0.5)
 
         logger.info(f"Searching for products matching: {properties.get('name', 'unknown')}")
 
         try:
-            # Execute hybrid search
-            result = await self.search_service.search(
-                query_properties=properties,
-                limit=limit,
-                confidence_threshold=confidence_threshold,
-            )
+            # Check if we have a CLIP image embedding for visual search
+            if image_embedding is not None:
+                logger.info("Using CLIP image embedding for visual search")
+                result = await self._image_similarity_search(
+                    image_embedding=image_embedding,
+                    limit=limit,
+                    confidence_threshold=confidence_threshold,
+                )
+            else:
+                # Execute standard hybrid search for text queries
+                result = await self.search_service.search(
+                    query_properties=properties,
+                    limit=limit,
+                    confidence_threshold=confidence_threshold,
+                )
 
             # Get best match confidence
             best_confidence = (
@@ -112,6 +127,79 @@ class ProductMatcherAgent(BaseAgent):
                 "match_confidence": 0.0,
                 "search_error": str(e),
             })
+
+    @traceable(name="image_similarity_search")
+    async def _image_similarity_search(
+        self,
+        image_embedding: List[float],
+        limit: int = 10,
+        confidence_threshold: float = 0.5,
+    ):
+        """
+        Search for products using CLIP image embedding.
+
+        This is much faster than text extraction + hybrid search for images.
+
+        Args:
+            image_embedding: 512-dim CLIP embedding of query image
+            limit: Maximum results to return
+            confidence_threshold: Minimum confidence for results
+
+        Returns:
+            SearchResult with matches from image similarity
+        """
+        from src.services.search_service import SearchResult
+
+        # Query the images collection in ChromaDB
+        vector_results = self.chroma.query_images(
+            query_embedding=image_embedding,
+            limit=limit * 2,  # Over-fetch for filtering
+        )
+
+        matches = []
+        product_ids = vector_results.get("ids", [])
+        distances = vector_results.get("distances", [])
+        metadatas = vector_results.get("metadatas", [])
+
+        if product_ids:
+            # Get full product data from SQLite
+            products = await self.sqlite.get_products_by_ids(product_ids)
+            product_map = {p.id: p.to_dict() for p in products}
+
+            for i, product_id in enumerate(product_ids):
+                if product_id in product_map:
+                    product = product_map[product_id]
+                    distance = distances[i] if distances else 1.0
+
+                    # Convert cosine distance to confidence (0 = identical, 2 = opposite)
+                    confidence = max(0, 1 - distance / 2)
+
+                    if confidence >= confidence_threshold:
+                        product["match_confidence"] = confidence
+                        product["match_source"] = "clip_image"
+
+                        # Add image URL from metadata if available
+                        if metadatas and i < len(metadatas):
+                            meta = metadatas[i]
+                            if "image_url" in meta:
+                                product["image_url"] = meta["image_url"]
+
+                        matches.append(product)
+
+            # Sort by confidence
+            matches.sort(key=lambda x: x["match_confidence"], reverse=True)
+            matches = matches[:limit]
+
+        logger.info(f"CLIP image search found {len(matches)} matches")
+
+        return SearchResult(
+            matches=matches,
+            method="clip_image",
+            sql_candidates_count=0,
+            vector_candidates_count=len(product_ids),
+            confidence=matches[0]["match_confidence"] if matches else 0.0,
+            cached=False,
+        )
 
     @traceable(name="exact_gtin_search")
     async def exact_gtin_search(self, gtin: str) -> Optional[dict]:

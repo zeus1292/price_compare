@@ -12,6 +12,7 @@ from src.agents.live_searcher import LiveSearcherAgent
 from src.agents.product_matcher import ProductMatcherAgent
 from src.agents.property_extractor import PropertyExtractorAgent
 from src.config.settings import get_settings
+from src.services.metrics_service import get_metrics_service
 
 
 logging.basicConfig(level=logging.INFO)
@@ -343,8 +344,20 @@ class Orchestrator:
             if final_state.get("extraction_error"):
                 logger.warning(f"Extraction error: {final_state.get('extraction_error')}")
 
+            # Record metrics
+            final_results = final_state.get("final_results", [])[:limit]
+            metrics_service = get_metrics_service()
+            search_metrics = metrics_service.record_search(
+                query=query[:100],  # Truncate for storage
+                input_type=input_type,
+                results=final_results,
+                live_search_triggered=final_state.get("live_search_triggered", False),
+                processing_time_ms=processing_time_ms,
+                extraction_confidence=final_state.get("extraction_confidence", 0.0),
+            )
+
             return {
-                "results": final_state.get("final_results", [])[:limit],
+                "results": final_results,
                 "query_info": {
                     "extracted_properties": final_state.get("extracted_properties"),
                     "search_method": final_state.get("search_method"),
@@ -357,6 +370,7 @@ class Orchestrator:
                     "sql_candidates": final_state.get("sql_candidates_count", 0),
                     "vector_candidates": final_state.get("vector_candidates_count", 0),
                 },
+                "metrics": search_metrics.to_dict(),
                 "processing_time_ms": processing_time_ms,
                 "error": final_state.get("error"),
             }

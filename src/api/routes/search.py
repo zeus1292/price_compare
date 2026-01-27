@@ -161,21 +161,45 @@ async def search_by_image(
 @router.get("/search/stats")
 async def get_search_stats():
     """
-    Get search statistics.
+    Get search statistics including cache info.
     """
     try:
+        from src.agents.live_searcher import get_tavily_cache
         from src.services.search_service import HybridSearchService
 
         search_service = HybridSearchService()
         stats = await search_service.get_stats()
 
+        # Get Tavily cache stats
+        tavily_cache = get_tavily_cache()
+        cache_stats = tavily_cache.get_stats()
+
         return {
             "database": stats,
+            "tavily_cache": cache_stats,
         }
 
     except Exception as e:
         logger.error(f"Failed to get search stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/search/metrics")
+async def get_search_metrics():
+    """
+    Get search quality metrics (precision/recall proxies).
+
+    Returns aggregate statistics and recent search performance.
+    """
+    from src.services.metrics_service import get_metrics_service
+
+    metrics_service = get_metrics_service()
+
+    return {
+        "aggregate": metrics_service.get_aggregate_report(),
+        "recent_searches": metrics_service.get_recent_searches(limit=20),
+        "performance_summary": metrics_service.get_performance_summary(),
+    }
 
 
 @router.get("/search/debug")

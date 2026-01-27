@@ -15,12 +15,14 @@ class ChromaManager:
     Manages ChromaDB collections for semantic product search.
 
     Collections:
-    - product_names: Embeddings of product names
-    - product_descriptions: Embeddings of full product descriptions
+    - product_names: Text embeddings of product names (OpenAI)
+    - product_descriptions: Text embeddings of full product descriptions (OpenAI)
+    - product_images: CLIP embeddings of product images
     """
 
     COLLECTION_NAMES = "product_names"
     COLLECTION_DESCRIPTIONS = "product_descriptions"
+    COLLECTION_IMAGES = "product_images"
 
     def __init__(self, persist_path: Optional[str] = None):
         settings = get_settings()
@@ -69,6 +71,14 @@ class ChromaManager:
         return self.get_or_create_collection(
             self.COLLECTION_DESCRIPTIONS,
             {"description": "Embeddings of full product descriptions"}
+        )
+
+    @property
+    def images_collection(self) -> chromadb.Collection:
+        """Get the product images collection (CLIP embeddings)."""
+        return self.get_or_create_collection(
+            self.COLLECTION_IMAGES,
+            {"description": "CLIP embeddings of product images for visual search"}
         )
 
     # Add Operations
@@ -134,6 +144,41 @@ class ChromaManager:
             ids=product_ids,
             embeddings=embeddings,
             documents=descriptions,
+            metadatas=metas,
+        )
+
+    def add_image_embedding(
+        self,
+        product_id: str,
+        image_url: str,
+        embedding: List[float],
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Add a CLIP embedding for a product image."""
+        meta = metadata or {}
+        meta["image_url"] = image_url
+        self.images_collection.add(
+            ids=[product_id],
+            embeddings=[embedding],
+            documents=[image_url],  # Store URL as document
+            metadatas=[meta],
+        )
+
+    def add_image_embeddings_batch(
+        self,
+        product_ids: List[str],
+        image_urls: List[str],
+        embeddings: List[List[float]],
+        metadatas: Optional[List[dict]] = None,
+    ) -> None:
+        """Add CLIP embeddings for multiple product images."""
+        metas = metadatas or [{} for _ in product_ids]
+        for i, meta in enumerate(metas):
+            meta["image_url"] = image_urls[i]
+        self.images_collection.add(
+            ids=product_ids,
+            embeddings=embeddings,
+            documents=image_urls,
             metadatas=metas,
         )
 
@@ -222,6 +267,30 @@ class ChromaManager:
             filter_ids=filter_ids,
         )
 
+    def query_images(
+        self,
+        query_embedding: List[float],
+        limit: int = 10,
+        filter_ids: Optional[List[str]] = None,
+    ) -> dict:
+        """
+        Query product images collection using CLIP embedding.
+
+        Args:
+            query_embedding: CLIP embedding (512-dim) of query image or text
+            limit: Maximum results to return
+            filter_ids: Optional list of product IDs to filter
+
+        Returns:
+            Query results with similar product images
+        """
+        return self.query_by_embedding(
+            collection_name=self.COLLECTION_IMAGES,
+            query_embedding=query_embedding,
+            limit=limit,
+            filter_ids=filter_ids,
+        )
+
     # Update Operations
 
     def update_product_metadata(
@@ -290,6 +359,7 @@ class ChromaManager:
         return {
             "names_count": self.get_collection_count(self.COLLECTION_NAMES),
             "descriptions_count": self.get_collection_count(self.COLLECTION_DESCRIPTIONS),
+            "images_count": self.get_collection_count(self.COLLECTION_IMAGES),
             "persist_path": self.persist_path,
         }
 
@@ -305,6 +375,7 @@ class ChromaManager:
         """Reset all collections."""
         self.reset_collection(self.COLLECTION_NAMES)
         self.reset_collection(self.COLLECTION_DESCRIPTIONS)
+        self.reset_collection(self.COLLECTION_IMAGES)
         self._collections.clear()
 
     def get_product_embedding(

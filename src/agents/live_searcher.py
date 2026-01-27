@@ -5,12 +5,16 @@ Optimized for speed with:
 - Parallel LLM calls for result parsing
 - Basic search depth option for faster results
 - Heuristic-based extraction as fallback
+- Result caching to avoid redundant API calls
 """
 import asyncio
+import hashlib
+import json
 import logging
 import re
 import time
-from typing import List, Optional
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 from langsmith import traceable
@@ -25,17 +29,98 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class TavilyCache:
+    """
+    In-memory cache for Tavily search results.
+
+    Caches results for a configurable TTL to avoid redundant API calls.
+    """
+
+    def __init__(self, ttl_minutes: int = 30, max_size: int = 1000):
+        self.ttl = timedelta(minutes=ttl_minutes)
+        self.max_size = max_size
+        self._cache: Dict[str, dict] = {}
+
+    def _hash_query(self, query: str, search_depth: str) -> str:
+        """Generate cache key from query and settings."""
+        key = f"{query}:{search_depth}"
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    def get(self, query: str, search_depth: str) -> Optional[List[dict]]:
+        """Get cached results if available and not expired."""
+        cache_key = self._hash_query(query, search_depth)
+
+        if cache_key in self._cache:
+            entry = self._cache[cache_key]
+            if datetime.now() < entry["expires_at"]:
+                logger.info(f"Tavily cache hit for query: {query[:50]}...")
+                return entry["results"]
+            else:
+                # Expired - remove from cache
+                del self._cache[cache_key]
+
+        return None
+
+    def set(self, query: str, search_depth: str, results: List[dict]) -> None:
+        """Cache search results."""
+        # Evict oldest entries if cache is full
+        if len(self._cache) >= self.max_size:
+            oldest_key = min(
+                self._cache.keys(),
+                key=lambda k: self._cache[k]["expires_at"]
+            )
+            del self._cache[oldest_key]
+
+        cache_key = self._hash_query(query, search_depth)
+        self._cache[cache_key] = {
+            "results": results,
+            "expires_at": datetime.now() + self.ttl,
+            "cached_at": datetime.now(),
+        }
+        logger.info(f"Tavily result cached for query: {query[:50]}...")
+
+    def get_stats(self) -> dict:
+        """Get cache statistics."""
+        now = datetime.now()
+        valid_entries = sum(1 for e in self._cache.values() if now < e["expires_at"])
+        return {
+            "total_entries": len(self._cache),
+            "valid_entries": valid_entries,
+            "expired_entries": len(self._cache) - valid_entries,
+            "max_size": self.max_size,
+            "ttl_minutes": self.ttl.total_seconds() / 60,
+        }
+
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self._cache.clear()
+
+
+# Singleton cache instance
+_tavily_cache: Optional[TavilyCache] = None
+
+
+def get_tavily_cache() -> TavilyCache:
+    """Get or create the Tavily cache singleton."""
+    global _tavily_cache
+    if _tavily_cache is None:
+        _tavily_cache = TavilyCache()
+    return _tavily_cache
+
+
 class LiveSearcherAgent(BaseAgent):
     """
     Agent for searching the web when database has no confident match.
 
     Uses Tavily API for web search and LLM for result parsing.
+    Results are cached to avoid redundant API calls.
 
     Output:
         {
             "live_search_results": [...],
             "live_search_triggered": True,
-            "search_time_ms": 1234
+            "search_time_ms": 1234,
+            "cache_hit": True/False
         }
     """
 
@@ -43,11 +128,13 @@ class LiveSearcherAgent(BaseAgent):
         self,
         llm_service: Optional[LLMService] = None,
         tavily_api_key: Optional[str] = None,
+        cache: Optional[TavilyCache] = None,
     ):
         super().__init__(name="LiveSearcher", llm_service=llm_service)
 
         settings = get_settings()
         self.tavily_key = tavily_api_key or settings.tavily_api_key.get_secret_value()
+        self.cache = cache or get_tavily_cache()
 
         if self.tavily_key:
             self.tavily_client = TavilyClient(api_key=self.tavily_key)
@@ -86,18 +173,20 @@ class LiveSearcherAgent(BaseAgent):
             logger.info(f"Live search query: {search_query} (fast_mode={fast_mode})")
 
             # Execute Tavily search (basic depth for speed)
+            search_depth = "basic" if fast_mode else "advanced"
             tavily_results = await self._tavily_search(
                 search_query,
                 max_results=8,  # Fewer results for speed
-                search_depth="basic" if fast_mode else "advanced",
+                search_depth=search_depth,
             )
 
             # Parse results - fast mode uses heuristics, slow mode uses LLM
+            results_list = tavily_results.get("results", [])
             if fast_mode:
-                parsed_products = self._parse_results_fast(tavily_results, properties)
+                parsed_products = self._parse_results_fast(results_list, properties)
             else:
                 parsed_products = await self._parse_results_with_llm(
-                    tavily_results, properties
+                    results_list, properties
                 )
 
             # Verify matches
@@ -110,7 +199,8 @@ class LiveSearcherAgent(BaseAgent):
                 "live_search_results": verified,
                 "live_search_triggered": True,
                 "live_search_query": search_query,
-                "live_search_raw_count": len(tavily_results),
+                "live_search_raw_count": len(tavily_results.get("results", [])),
+                "live_search_cache_hit": tavily_results.get("cache_hit", False),
                 "search_time_ms": elapsed_ms,
             })
 
@@ -156,17 +246,28 @@ class LiveSearcherAgent(BaseAgent):
         query: str,
         max_results: int = 8,
         search_depth: str = "basic",
-    ) -> List[dict]:
+        use_cache: bool = True,
+    ) -> dict:
         """
-        Execute Tavily search.
+        Execute Tavily search with caching.
 
         Args:
             query: Search query
             max_results: Maximum results to return
             search_depth: "basic" (fast) or "advanced" (thorough)
+            use_cache: Whether to use/update cache
+
+        Returns:
+            Dict with "results" list and "cache_hit" boolean
         """
         if not self.tavily_client:
-            return []
+            return {"results": [], "cache_hit": False}
+
+        # Check cache first
+        if use_cache:
+            cached_results = self.cache.get(query, search_depth)
+            if cached_results is not None:
+                return {"results": cached_results, "cache_hit": True}
 
         try:
             response = self.tavily_client.search(
@@ -192,11 +293,15 @@ class LiveSearcherAgent(BaseAgent):
                 if i < len(images):
                     result["image_url"] = images[i]
 
-            return results
+            # Cache results
+            if use_cache:
+                self.cache.set(query, search_depth, results)
+
+            return {"results": results, "cache_hit": False}
 
         except Exception as e:
             logger.error(f"Tavily search error: {e}")
-            return []
+            return {"results": [], "cache_hit": False}
 
     def _parse_results_fast(
         self,
@@ -453,3 +558,16 @@ Return null if this is not a product listing."""
         Check if live search is available.
         """
         return self.tavily_client is not None
+
+    def get_cache_stats(self) -> dict:
+        """
+        Get Tavily cache statistics.
+        """
+        return self.cache.get_stats()
+
+    def clear_cache(self) -> None:
+        """
+        Clear the Tavily cache.
+        """
+        self.cache.clear()
+        logger.info("Tavily cache cleared")
