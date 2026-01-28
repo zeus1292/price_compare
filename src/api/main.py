@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.middleware.tracing import TracingMiddleware
-from src.api.routes import dataset, products, search
+from src.api.routes import dataset, feedback, products, search
 from src.config.settings import get_settings
 from src.database.sqlite_manager import SQLiteManager
 
@@ -96,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(search.router, prefix="/api/v1", tags=["Search"])
     app.include_router(products.router, prefix="/api/v1", tags=["Products"])
     app.include_router(dataset.router, prefix="/api/v1", tags=["Dataset"])
+    app.include_router(feedback.router, prefix="/api/v1", tags=["Feedback"])
 
     # Health check endpoints
     @app.get("/health", tags=["Health"])

@@ -226,9 +226,18 @@ class Orchestrator:
 
         database_matches = state.get("database_matches", [])
         live_results = state.get("live_search_results", [])
+        confidence_threshold = state.get(
+            "confidence_threshold", self.default_confidence_threshold
+        )
+        limit = state.get("limit", self.default_limit)
 
-        # Combine results
-        final_results = self._combine_results(database_matches, live_results)
+        # Combine and filter results by confidence threshold
+        final_results = self._combine_results(
+            database_matches,
+            live_results,
+            confidence_threshold=confidence_threshold,
+            limit=limit,
+        )
 
         return {
             **state,
@@ -239,50 +248,60 @@ class Orchestrator:
         self,
         database_matches: List[dict],
         live_results: List[dict],
+        confidence_threshold: float = 0.5,
+        limit: int = 10,
     ) -> List[dict]:
         """
-        Combine database and live search results.
+        Combine database and live search results, filtering by confidence.
 
-        Priority:
-        1. Database matches with high confidence
-        2. Live search results
-        3. Database matches with lower confidence
+        Args:
+            database_matches: Results from database search
+            live_results: Results from live web search
+            confidence_threshold: Minimum confidence to include in results
+            limit: Maximum number of results to return
+
+        Returns:
+            Combined and filtered results sorted by confidence
         """
         combined = []
         seen_urls = set()
 
-        # Add high-confidence database matches first
+        # Add all database matches that meet threshold
         for match in database_matches:
             confidence = match.get("match_confidence", 0)
-            if confidence >= 0.8:
+            if confidence >= confidence_threshold:
                 url = match.get("source_url")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                combined.append(match)
+                if url:
+                    if url not in seen_urls:
+                        seen_urls.add(url)
+                        combined.append(match)
+                else:
+                    # No URL - add based on product_id dedup
+                    combined.append(match)
 
-        # Add live search results
+        # Add live search results that meet threshold
         for result in live_results:
-            url = result.get("source_url")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                combined.append(result)
-
-        # Add remaining database matches
-        for match in database_matches:
-            confidence = match.get("match_confidence", 0)
-            if confidence < 0.8:
-                url = match.get("source_url")
+            confidence = result.get("match_confidence", 0)
+            if confidence >= confidence_threshold:
+                url = result.get("source_url")
                 if url and url not in seen_urls:
                     seen_urls.add(url)
-                combined.append(match)
+                    combined.append(result)
 
-        # Sort by confidence
+        # Sort by confidence (highest first)
         combined.sort(
             key=lambda x: x.get("match_confidence", 0),
             reverse=True,
         )
 
-        return combined
+        # Log filtering stats
+        total_before = len(database_matches) + len(live_results)
+        logger.info(
+            f"Result filtering: {total_before} total -> {len(combined)} above "
+            f"{confidence_threshold:.0%} threshold -> returning top {min(len(combined), limit)}"
+        )
+
+        return combined[:limit]
 
     @traceable(name="orchestrator_search", run_type="chain")
     async def search(
@@ -344,8 +363,8 @@ class Orchestrator:
             if final_state.get("extraction_error"):
                 logger.warning(f"Extraction error: {final_state.get('extraction_error')}")
 
-            # Record metrics
-            final_results = final_state.get("final_results", [])[:limit]
+            # Record metrics (results already limited in _combine_results)
+            final_results = final_state.get("final_results", [])
             metrics_service = get_metrics_service()
             search_metrics = metrics_service.record_search(
                 query=query[:100],  # Truncate for storage

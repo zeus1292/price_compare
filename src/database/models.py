@@ -146,6 +146,48 @@ class IngestionLog(Base):
     )
 
 
+class SearchFeedback(Base):
+    """
+    User feedback on search results.
+    Stores thumbs up/down ratings with context for analysis.
+    """
+    __tablename__ = "search_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trace_id = Column(String(36), nullable=True, index=True)  # Links to LangSmith trace
+    query = Column(Text, nullable=False)
+    query_type = Column(String(20), nullable=False)  # 'text', 'url', 'image'
+    result_product_id = Column(String(36), nullable=True)  # Product that was rated
+    result_name = Column(Text, nullable=True)  # Product name for quick reference
+    result_merchant = Column(String(255), nullable=True)
+    result_confidence = Column(Float, nullable=True)  # Confidence score when shown
+    rating = Column(Integer, nullable=False)  # 1 = thumbs up, -1 = thumbs down
+    comment = Column(Text, nullable=True)  # Optional user comment
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_feedback_rating", "rating"),
+        Index("idx_feedback_created", "created_at"),
+        Index("idx_feedback_query_type", "query_type"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert feedback to dictionary."""
+        return {
+            "id": self.id,
+            "trace_id": self.trace_id,
+            "query": self.query,
+            "query_type": self.query_type,
+            "result_product_id": self.result_product_id,
+            "result_name": self.result_name,
+            "result_merchant": self.result_merchant,
+            "result_confidence": self.result_confidence,
+            "rating": self.rating,
+            "comment": self.comment,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 def init_db(engine) -> None:
     """Initialize database tables."""
     Base.metadata.create_all(engine)

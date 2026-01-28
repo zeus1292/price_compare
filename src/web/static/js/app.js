@@ -13,6 +13,13 @@ let loadingStartTime = null;
 let loadingTimer = null;
 let isSearchCollapsed = false;
 
+// Search context for feedback
+let lastSearchContext = {
+    query: '',
+    queryType: 'text',
+    traceId: null,
+};
+
 // DOM Elements
 const searchModule = document.getElementById('search-module');
 const searchHeader = document.getElementById('search-header');
@@ -346,13 +353,18 @@ async function performImageSearch(file) {
 function displayResults(data) {
     const results = data.results || [];
 
+    // Store search context for feedback
+    const qi = data.query_info || {};
+    const props = qi.extracted_properties || {};
+    lastSearchContext = {
+        query: props.name || currentQuery,
+        queryType: detectedInputType,
+        traceId: data.trace_id || null,
+    };
+
     // Update counts
     resultCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
     processingTime.textContent = `${data.processing_time_ms}ms`;
-
-    // Update query info
-    const qi = data.query_info || {};
-    const props = qi.extracted_properties || {};
 
     let queryInfoHtml = '<div class="query-info-row">';
 
@@ -404,13 +416,13 @@ function displayResults(data) {
     queryInfo.innerHTML = queryInfoHtml;
 
     // Display results grid
-    resultsGrid.innerHTML = results.map(product => createProductCard(product)).join('');
+    resultsGrid.innerHTML = results.map((product, index) => createProductCard(product, index)).join('');
 
     showResults();
 }
 
 // Create product card HTML
-function createProductCard(product) {
+function createProductCard(product, index) {
     const name = product.name || 'Unknown Product';
     const price = product.price ? formatPrice(product.price, product.currency) : 'N/A';
     const merchant = product.merchant || 'Unknown Merchant';
@@ -418,6 +430,7 @@ function createProductCard(product) {
     const sourceUrl = product.source_url;
     const confidence = product.match_confidence || 0;
     const source = product.match_source || 'database';
+    const productId = product.id || product.product_id || null;
 
     const confidenceClass = confidence >= 0.8 ? 'confidence-high' :
                            confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
@@ -433,8 +446,16 @@ function createProductCard(product) {
         ? `<img src="${imageUrl}" alt="${escapeHtml(name)}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background: ${placeholderColor}\\'>${initials}</div>'">`
         : `<div class="product-image placeholder" style="background: ${placeholderColor}">${initials}</div>`;
 
+    // Encode product data for feedback
+    const feedbackData = encodeURIComponent(JSON.stringify({
+        productId: productId,
+        name: name,
+        merchant: merchant,
+        confidence: confidence,
+    }));
+
     return `
-        <article class="product-card">
+        <article class="product-card" data-product-index="${index}">
             <div class="product-image-container">
                 ${imageHtml}
                 <span class="product-badge ${badgeClass}">${badgeText}</span>
@@ -448,6 +469,16 @@ function createProductCard(product) {
                         ${(confidence * 100).toFixed(0)}% match
                     </span>
                     ${sourceUrl ? `<a href="${sourceUrl}" target="_blank" class="product-link">View Product</a>` : ''}
+                </div>
+                <div class="product-feedback" data-feedback="${feedbackData}">
+                    <span class="feedback-label">Was this helpful?</span>
+                    <button class="feedback-btn thumbs-up" onclick="submitFeedback(this, 1)" title="Good match">
+                        <span class="feedback-icon">👍</span>
+                    </button>
+                    <button class="feedback-btn thumbs-down" onclick="submitFeedback(this, -1)" title="Poor match">
+                        <span class="feedback-icon">👎</span>
+                    </button>
+                    <span class="feedback-status"></span>
                 </div>
             </div>
         </article>
@@ -615,6 +646,64 @@ async function submitProduct(event) {
         resultDiv.className = 'contribute-result error';
         resultDiv.textContent = `Error: ${error.message}`;
         resultDiv.classList.remove('hidden');
+    }
+}
+
+// ========================================
+// FEEDBACK SUBMISSION
+// ========================================
+
+async function submitFeedback(button, rating) {
+    const feedbackContainer = button.closest('.product-feedback');
+    const statusEl = feedbackContainer.querySelector('.feedback-status');
+    const productData = JSON.parse(decodeURIComponent(feedbackContainer.dataset.feedback));
+
+    // Disable buttons while submitting
+    const buttons = feedbackContainer.querySelectorAll('.feedback-btn');
+    buttons.forEach(btn => btn.disabled = true);
+
+    // Show loading
+    statusEl.textContent = '...';
+    statusEl.className = 'feedback-status loading';
+
+    try {
+        const response = await fetch(`${API_BASE}/feedback`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: lastSearchContext.query,
+                query_type: lastSearchContext.queryType,
+                rating: rating,
+                trace_id: lastSearchContext.traceId,
+                result_product_id: productData.productId,
+                result_name: productData.name,
+                result_merchant: productData.merchant,
+                result_confidence: productData.confidence,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to submit feedback');
+        }
+
+        // Show success
+        statusEl.textContent = rating === 1 ? 'Thanks!' : 'Got it!';
+        statusEl.className = 'feedback-status success';
+
+        // Highlight the selected button
+        buttons.forEach(btn => btn.classList.remove('selected'));
+        button.classList.add('selected');
+
+        // Keep buttons disabled to prevent duplicate submissions
+    } catch (error) {
+        console.error('Feedback error:', error);
+        statusEl.textContent = 'Error';
+        statusEl.className = 'feedback-status error';
+
+        // Re-enable buttons on error
+        buttons.forEach(btn => btn.disabled = false);
     }
 }
 

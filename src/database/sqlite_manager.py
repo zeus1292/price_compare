@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, List, Optional, Tuple
 
-from sqlalchemy import and_, create_engine, func, or_, select, text
+from sqlalchemy import and_, case, create_engine, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -18,6 +18,7 @@ from src.database.models import (
     Product,
     ProductAttribute,
     SearchCache,
+    SearchFeedback,
     init_db,
 )
 
@@ -364,6 +365,148 @@ class SQLiteManager:
                 )
             )
             return [row[0] for row in result.all()]
+
+    # Feedback Operations
+
+    async def create_feedback(
+        self,
+        query: str,
+        query_type: str,
+        rating: int,
+        trace_id: Optional[str] = None,
+        result_product_id: Optional[str] = None,
+        result_name: Optional[str] = None,
+        result_merchant: Optional[str] = None,
+        result_confidence: Optional[float] = None,
+        comment: Optional[str] = None,
+    ) -> SearchFeedback:
+        """Create a new feedback entry."""
+        async with self.async_session() as session:
+            feedback = SearchFeedback(
+                trace_id=trace_id,
+                query=query,
+                query_type=query_type,
+                result_product_id=result_product_id,
+                result_name=result_name,
+                result_merchant=result_merchant,
+                result_confidence=result_confidence,
+                rating=rating,
+                comment=comment,
+            )
+            session.add(feedback)
+            await session.commit()
+            await session.refresh(feedback)
+            return feedback
+
+    async def get_feedback(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        rating_filter: Optional[int] = None,
+        query_type: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> List[SearchFeedback]:
+        """Query feedback with optional filters."""
+        async with self.async_session() as session:
+            query = select(SearchFeedback)
+            conditions = []
+
+            if rating_filter is not None:
+                conditions.append(SearchFeedback.rating == rating_filter)
+            if query_type:
+                conditions.append(SearchFeedback.query_type == query_type)
+            if start_date:
+                conditions.append(SearchFeedback.created_at >= start_date)
+            if end_date:
+                conditions.append(SearchFeedback.created_at <= end_date)
+
+            if conditions:
+                query = query.where(and_(*conditions))
+
+            query = query.order_by(SearchFeedback.created_at.desc())
+            query = query.limit(limit).offset(offset)
+
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    async def get_feedback_stats(self) -> dict:
+        """Get feedback statistics for analysis."""
+        async with self.async_session() as session:
+            # Total counts
+            total = await session.execute(
+                select(func.count(SearchFeedback.id))
+            )
+            positive = await session.execute(
+                select(func.count(SearchFeedback.id)).where(
+                    SearchFeedback.rating == 1
+                )
+            )
+            negative = await session.execute(
+                select(func.count(SearchFeedback.id)).where(
+                    SearchFeedback.rating == -1
+                )
+            )
+
+            # By query type
+            by_type = await session.execute(
+                select(
+                    SearchFeedback.query_type,
+                    func.count(SearchFeedback.id).label("total"),
+                    func.sum(
+                        func.case((SearchFeedback.rating == 1, 1), else_=0)
+                    ).label("positive"),
+                    func.sum(
+                        func.case((SearchFeedback.rating == -1, 1), else_=0)
+                    ).label("negative"),
+                ).group_by(SearchFeedback.query_type)
+            )
+
+            # Average confidence for positive vs negative
+            avg_conf_positive = await session.execute(
+                select(func.avg(SearchFeedback.result_confidence)).where(
+                    SearchFeedback.rating == 1
+                )
+            )
+            avg_conf_negative = await session.execute(
+                select(func.avg(SearchFeedback.result_confidence)).where(
+                    SearchFeedback.rating == -1
+                )
+            )
+
+            total_count = total.scalar() or 0
+            positive_count = positive.scalar() or 0
+            negative_count = negative.scalar() or 0
+
+            return {
+                "total_feedback": total_count,
+                "positive": positive_count,
+                "negative": negative_count,
+                "satisfaction_rate": (
+                    positive_count / total_count if total_count > 0 else 0.0
+                ),
+                "by_query_type": [
+                    {
+                        "type": row.query_type,
+                        "total": row.total,
+                        "positive": row.positive or 0,
+                        "negative": row.negative or 0,
+                    }
+                    for row in by_type.all()
+                ],
+                "avg_confidence_positive": avg_conf_positive.scalar(),
+                "avg_confidence_negative": avg_conf_negative.scalar(),
+            }
+
+    async def get_feedback_by_trace(self, trace_id: str) -> List[SearchFeedback]:
+        """Get all feedback for a specific trace."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(SearchFeedback).where(
+                    SearchFeedback.trace_id == trace_id
+                )
+            )
+            return list(result.scalars().all())
 
     # Statistics
 

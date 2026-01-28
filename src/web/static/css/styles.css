@@ -833,6 +833,80 @@ body {
     color: var(--accent-primary);
 }
 
+/* Product Feedback */
+.product-feedback {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.feedback-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.feedback-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+}
+
+.feedback-btn:hover:not(:disabled) {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.feedback-btn:disabled {
+    cursor: not-allowed;
+}
+
+.feedback-btn.thumbs-up:hover:not(:disabled),
+.feedback-btn.thumbs-up.selected {
+    border-color: var(--success);
+    background: var(--success-bg);
+    opacity: 1;
+}
+
+.feedback-btn.thumbs-down:hover:not(:disabled),
+.feedback-btn.thumbs-down.selected {
+    border-color: var(--error);
+    background: var(--error-bg);
+    opacity: 1;
+}
+
+.feedback-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.feedback-status {
+    font-size: 0.75rem;
+    margin-left: auto;
+}
+
+.feedback-status.loading {
+    color: var(--text-muted);
+}
+
+.feedback-status.success {
+    color: var(--success);
+}
+
+.feedback-status.error {
+    color: var(--error);
+}
+
 /* ========================================
    ERROR SECTION
    ======================================== */
