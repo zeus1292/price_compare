@@ -6,16 +6,28 @@ import logging
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Cookie, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from src.agents.orchestrator import get_orchestrator
+from src.api.routes.auth import get_session
+from src.database.sqlite_manager import SQLiteManager
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def sort_results(results: List[dict], sort_by: str) -> List[dict]:
+    """Sort results by the specified criteria."""
+    if sort_by == "price_low_high":
+        return sorted(results, key=lambda x: x.get("price") or float('inf'))
+    elif sort_by == "price_high_low":
+        return sorted(results, key=lambda x: x.get("price") or 0, reverse=True)
+    else:  # Default: relevance (by confidence)
+        return sorted(results, key=lambda x: x.get("match_confidence", 0), reverse=True)
 
 
 class SearchFilters(BaseModel):
@@ -38,6 +50,10 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=100)
     enable_live_search: bool = Field(default=True)
     confidence_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
+    sort_by: Literal["relevance", "price_low_high", "price_high_low"] = Field(
+        default="relevance",
+        description="Sort order for results",
+    )
 
 
 class ProductResult(BaseModel):
@@ -70,7 +86,10 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_products(request: SearchRequest):
+async def search_products(
+    request: SearchRequest,
+    session_token: Optional[str] = Cookie(default=None, alias="session"),
+):
     """
     Search for products.
 
@@ -94,8 +113,30 @@ async def search_products(request: SearchRequest):
         if result.get("error"):
             logger.error(f"Search error [{trace_id}]: {result['error']}")
 
+        # Sort results based on sort_by parameter
+        results = result.get("results", [])
+        results = sort_results(results, request.sort_by)
+
+        # Save search history for logged-in users
+        if session_token:
+            session = get_session(session_token)
+            if session:
+                try:
+                    db = SQLiteManager()
+                    db.initialize()
+                    # Only save text/URL queries to history (not raw image data)
+                    query_to_save = request.query if request.input_type != "image" else "[Image Search]"
+                    await db.add_search_history(
+                        user_id=session["user_id"],
+                        query=query_to_save,
+                        query_type=request.input_type,
+                        result_count=len(results),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save search history: {e}")
+
         return SearchResponse(
-            results=result.get("results", []),
+            results=results,
             query_info=QueryInfo(
                 extracted_properties=result.get("query_info", {}).get("extracted_properties"),
                 search_method=result.get("query_info", {}).get("search_method"),
@@ -117,6 +158,8 @@ async def search_by_image(
     limit: int = Form(default=10),
     enable_live_search: bool = Form(default=True),
     confidence_threshold: float = Form(default=0.9),
+    sort_by: str = Form(default="relevance"),
+    session_token: Optional[str] = Cookie(default=None, alias="session"),
 ):
     """
     Search for products using an image.
@@ -141,8 +184,28 @@ async def search_by_image(
             enable_live_search=enable_live_search,
         )
 
+        # Sort results
+        results = result.get("results", [])
+        results = sort_results(results, sort_by)
+
+        # Save search history for logged-in users
+        if session_token:
+            session = get_session(session_token)
+            if session:
+                try:
+                    db = SQLiteManager()
+                    db.initialize()
+                    await db.add_search_history(
+                        user_id=session["user_id"],
+                        query=f"[Image: {image.filename}]",
+                        query_type="image",
+                        result_count=len(results),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save search history: {e}")
+
         return SearchResponse(
-            results=result.get("results", []),
+            results=results,
             query_info=QueryInfo(
                 extracted_properties=result.get("query_info", {}).get("extracted_properties"),
                 search_method=result.get("query_info", {}).get("search_method"),

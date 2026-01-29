@@ -3,72 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Price Compare - Product Matching Tool</title>
+    <title>PriceHawk - Smart Product Price Comparison</title>
     <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦅</text></svg>">
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="header-content">
             <a href="/" class="logo">
-                <span class="logo-icon">🏷️</span>
-                <span class="logo-text">Price<span>Compare</span></span>
+                <span class="logo-icon">🦅</span>
+                <span class="logo-text">PriceHawk</span>
             </a>
+            <div class="header-actions" id="header-actions">
+                <!-- Auth buttons populated by JS -->
+                <button class="auth-btn" id="login-btn" onclick="showAuthModal('login')">Log In</button>
+                <button class="auth-btn primary" id="signup-btn" onclick="showAuthModal('signup')">Sign Up</button>
+            </div>
+            <div class="user-menu hidden" id="user-menu">
+                <span class="user-name" id="user-name"></span>
+                <button class="auth-btn" onclick="logout()">Log Out</button>
+            </div>
         </div>
     </header>
 
     <div class="app-container">
         <main>
-            <!-- Search Module (Collapsible) -->
+            <!-- Search Module -->
             <section class="search-module" id="search-module">
-                <!-- Search Header - Click to collapse/expand -->
-                <div class="search-header" id="search-header" onclick="toggleSearchModule()">
-                    <div class="search-title">
-                        <span class="search-title-icon">🔍</span>
-                        <span class="search-title-text">Product Search</span>
-                        <span class="search-query-preview hidden" id="search-query-preview"></span>
-                    </div>
-                    <button class="search-expand-btn" type="button" aria-label="Toggle search">
-                        <span class="expand-icon">▼</span>
-                    </button>
-                </div>
-
-                <!-- Search Body - Unified Input -->
                 <div class="search-body" id="search-body">
                     <form id="search-form" class="unified-search-form">
                         <!-- Main Input Area -->
-                        <div class="unified-input-container" id="unified-input-container">
-                            <!-- Text/URL Input -->
-                            <div class="input-row">
-                                <div class="search-input-wrapper">
-                                    <span class="search-input-icon">🔍</span>
-                                    <input
-                                        type="text"
-                                        id="search-input"
-                                        class="search-input"
-                                        placeholder="Search by product name, paste a URL, or drop an image..."
-                                        autocomplete="off"
-                                    >
-                                    <span class="input-type-badge" id="input-type-badge">Text</span>
-                                </div>
-                                <button type="submit" class="search-btn" id="search-btn">
-                                    <span>Search</span>
+                        <div class="input-row">
+                            <div class="search-input-wrapper">
+                                <input
+                                    type="text"
+                                    id="search-input"
+                                    class="search-input"
+                                    placeholder="Search for any product..."
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="camera-btn" id="camera-btn" title="Search by image">
+                                    📷
                                 </button>
-                            </div>
-
-                            <!-- Image Drop Zone (inline, subtle) -->
-                            <div class="image-drop-zone" id="image-drop-zone">
                                 <input type="file" id="image-input" accept="image/*" class="hidden">
-                                <div class="drop-zone-content" id="drop-zone-content">
-                                    <span class="drop-icon">📷</span>
-                                    <span class="drop-text">or drop an image here</span>
-                                </div>
-                                <!-- Image Preview (shown when image selected) -->
-                                <div class="image-preview-container hidden" id="image-preview-container">
-                                    <img id="image-preview" src="" alt="Preview">
-                                    <button type="button" class="remove-image-btn" id="remove-image-btn" title="Remove image">✕</button>
-                                </div>
+                            </div>
+                            <button type="submit" class="search-btn" id="search-btn">
+                                Search
+                            </button>
+                        </div>
+
+                        <!-- Image Drop Zone (hidden by default, shown when camera clicked) -->
+                        <div class="image-drop-zone" id="image-drop-zone">
+                            <div class="drop-zone-content" id="drop-zone-content">
+                                <span class="drop-icon">📷</span>
+                                <span class="drop-text">Drop an image here or click to upload</span>
+                            </div>
+                            <div class="image-preview-container hidden" id="image-preview-container">
+                                <img id="image-preview" src="" alt="Preview">
+                                <button type="button" class="remove-image-btn" id="remove-image-btn" title="Remove image">✕</button>
                             </div>
                         </div>
 
@@ -76,35 +69,77 @@
                         <div class="search-options">
                             <label class="search-option">
                                 <input type="checkbox" id="enable-live-search" checked>
-                                <span>Enable live web search</span>
+                                <span>Live web search</span>
                             </label>
                             <label class="search-option">
-                                <span>Confidence threshold:</span>
-                                <input type="range" id="confidence-threshold" min="0" max="100" value="90">
-                                <span class="threshold-value" id="threshold-value">90%</span>
+                                <span>Min confidence:</span>
+                                <input type="range" id="confidence-threshold" min="0" max="100" value="70">
+                                <span class="threshold-value" id="threshold-value">70%</span>
                             </label>
                         </div>
                     </form>
                 </div>
             </section>
 
+            <!-- Recent Searches (for logged-in users) -->
+            <section id="recent-searches-section" class="recent-searches-section hidden">
+                <div class="section-header">
+                    <h3 class="section-title">Recent Searches</h3>
+                    <button class="clear-history-btn" onclick="clearSearchHistory()">Clear</button>
+                </div>
+                <div class="recent-searches-list" id="recent-searches-list">
+                    <!-- Recent searches populated by JS -->
+                </div>
+            </section>
+
+            <!-- Trending Categories -->
+            <section id="trending-section" class="trending-section">
+                <h3 class="section-title">Trending Categories</h3>
+                <div class="carousel-container">
+                    <button class="carousel-btn prev" onclick="scrollCarousel(-1)" id="carousel-prev">‹</button>
+                    <div class="trending-carousel" id="trending-carousel">
+                        <div class="category-card" onclick="searchCategory('Electronics')">
+                            <span class="category-icon">📱</span>
+                            <span class="category-name">Electronics</span>
+                        </div>
+                        <div class="category-card" onclick="searchCategory('Fashion')">
+                            <span class="category-icon">👗</span>
+                            <span class="category-name">Fashion</span>
+                        </div>
+                        <div class="category-card" onclick="searchCategory('Home & Kitchen')">
+                            <span class="category-icon">🏠</span>
+                            <span class="category-name">Home & Kitchen</span>
+                        </div>
+                        <div class="category-card" onclick="searchCategory('Beauty')">
+                            <span class="category-icon">💄</span>
+                            <span class="category-name">Beauty</span>
+                        </div>
+                        <div class="category-card" onclick="searchCategory('Sports & Outdoors')">
+                            <span class="category-icon">⚽</span>
+                            <span class="category-name">Sports & Outdoors</span>
+                        </div>
+                    </div>
+                    <button class="carousel-btn next" onclick="scrollCarousel(1)" id="carousel-next">›</button>
+                </div>
+            </section>
+
             <!-- Loading Section -->
             <section id="loading-section" class="loading-section hidden">
                 <div class="loading-spinner"></div>
-                <h3 class="loading-title">Searching for products...</h3>
-                <p class="loading-status" id="loading-status">Initializing search</p>
+                <h3 class="loading-title">Finding the best matches...</h3>
+                <p class="loading-status" id="loading-status">Analyzing your query</p>
                 <div class="loading-steps">
                     <div class="loading-step" id="step-extract">
                         <span class="step-indicator">1</span>
-                        <span>Analyzing query</span>
+                        <span>Analyzing</span>
                     </div>
                     <div class="loading-step" id="step-search">
                         <span class="step-indicator">2</span>
-                        <span>Searching database</span>
+                        <span>Searching</span>
                     </div>
                     <div class="loading-step" id="step-rank">
                         <span class="step-indicator">3</span>
-                        <span>Ranking results</span>
+                        <span>Ranking</span>
                     </div>
                 </div>
                 <p class="loading-time" id="loading-time"></p>
@@ -119,22 +154,21 @@
             <!-- Results Section -->
             <section id="results-section" class="results-section hidden">
                 <div class="results-header">
-                    <h2 class="results-title">Search Results</h2>
-                    <div class="results-meta">
-                        <span class="results-meta-item">
-                            <span class="meta-icon">📦</span>
-                            <span id="result-count">0 results</span>
-                        </span>
-                        <span class="results-meta-item">
-                            <span class="meta-icon">⚡</span>
-                            <span id="processing-time">0ms</span>
-                        </span>
+                    <h2 class="results-title">
+                        <span class="results-title-icon">📦</span>
+                        Matches Found
+                    </h2>
+                    <div class="results-controls">
+                        <span class="results-meta-item" id="result-count">0 results</span>
+                        <div class="sort-control">
+                            <label for="sort-by">Sort by:</label>
+                            <select id="sort-by" class="sort-select" onchange="handleSortChange()">
+                                <option value="relevance">Relevance</option>
+                                <option value="price_low_high">Price: Low to High</option>
+                                <option value="price_high_low">Price: High to Low</option>
+                            </select>
+                        </div>
                     </div>
-                </div>
-
-                <!-- Query Info Card -->
-                <div class="query-info-card" id="query-info">
-                    <!-- Populated by JavaScript -->
                 </div>
 
                 <!-- Results Grid -->
@@ -147,7 +181,7 @@
             <section class="contribute-section">
                 <button class="contribute-toggle" onclick="toggleContributeForm()">
                     <span>➕</span>
-                    <span>Contribute a Product</span>
+                    <span>Add a Product</span>
                 </button>
                 <div id="contribute-form" class="contribute-form hidden">
                     <div class="contribute-header">
@@ -162,7 +196,7 @@
                             <input type="text" id="contrib-merchant" class="contribute-input" placeholder="Store/Merchant">
                             <input type="url" id="contrib-url" class="contribute-input" placeholder="Product page URL">
                             <input type="url" id="contrib-image" class="contribute-input" placeholder="Image URL">
-                            <input type="text" id="contrib-category" class="contribute-input" placeholder="Category (e.g., Electronics)">
+                            <input type="text" id="contrib-category" class="contribute-input" placeholder="Category">
                         </div>
                         <div class="contribute-actions">
                             <button type="submit" class="contribute-btn">Add Product</button>
@@ -177,10 +211,42 @@
         <footer class="footer">
             <p class="footer-text">Powered by multi-agent AI with LangGraph</p>
             <div class="footer-links">
-                <a href="/docs" target="_blank" class="footer-link">API Documentation</a>
-                <a href="https://smith.langchain.com/o/default/projects/p/price-compare" target="_blank" class="footer-link" id="langsmith-link">View Traces (LangSmith)</a>
+                <a href="/docs" target="_blank" class="footer-link">API Docs</a>
+                <a href="/api/v1/search/metrics" target="_blank" class="footer-link">Metrics</a>
             </div>
         </footer>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay hidden" id="auth-modal">
+        <div class="modal">
+            <button class="modal-close" onclick="hideAuthModal()">&times;</button>
+            <div class="modal-header">
+                <h2 class="modal-title" id="auth-modal-title">Log In</h2>
+            </div>
+            <div class="modal-body">
+                <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+                    <div class="form-group hidden" id="name-group">
+                        <label for="auth-name">Name</label>
+                        <input type="text" id="auth-name" class="form-input" placeholder="Your name">
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-email">Email</label>
+                        <input type="email" id="auth-email" class="form-input" placeholder="you@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-password">Password</label>
+                        <input type="password" id="auth-password" class="form-input" placeholder="••••••••" required minlength="6">
+                    </div>
+                    <div class="auth-error hidden" id="auth-error"></div>
+                    <button type="submit" class="auth-submit-btn" id="auth-submit-btn">Log In</button>
+                </form>
+                <div class="auth-switch">
+                    <span id="auth-switch-text">Don't have an account?</span>
+                    <button type="button" class="auth-switch-btn" id="auth-switch-btn" onclick="toggleAuthMode()">Sign Up</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/app.js"></script>

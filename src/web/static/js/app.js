@@ -1,6 +1,6 @@
 /**
- * Price Compare - Frontend Application
- * Unified Input with Auto-Detection
+ * PriceHawk - Smart Product Price Comparison
+ * Light theme with auth, trending categories, and recent searches
  */
 
 const API_BASE = '/api/v1';
@@ -11,7 +11,9 @@ let detectedInputType = 'text';
 let selectedImageFile = null;
 let loadingStartTime = null;
 let loadingTimer = null;
-let isSearchCollapsed = false;
+let currentUser = null;
+let lastSearchResults = [];
+let currentSortBy = 'relevance';
 
 // Search context for feedback
 let lastSearchContext = {
@@ -21,14 +23,10 @@ let lastSearchContext = {
 };
 
 // DOM Elements
-const searchModule = document.getElementById('search-module');
-const searchHeader = document.getElementById('search-header');
-const searchBody = document.getElementById('search-body');
-const searchQueryPreview = document.getElementById('search-query-preview');
 const searchForm = document.getElementById('search-form');
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
-const inputTypeBadge = document.getElementById('input-type-badge');
+const cameraBtn = document.getElementById('camera-btn');
 const imageDropZone = document.getElementById('image-drop-zone');
 const imageInput = document.getElementById('image-input');
 const dropZoneContent = document.getElementById('drop-zone-content');
@@ -46,11 +44,36 @@ const stepSearch = document.getElementById('step-search');
 const stepRank = document.getElementById('step-rank');
 const resultsSection = document.getElementById('results-section');
 const resultCount = document.getElementById('result-count');
-const processingTime = document.getElementById('processing-time');
-const queryInfo = document.getElementById('query-info');
 const resultsGrid = document.getElementById('results-grid');
 const errorSection = document.getElementById('error-section');
 const errorMessage = document.getElementById('error-message');
+const sortBySelect = document.getElementById('sort-by');
+
+// Auth DOM Elements
+const headerActions = document.getElementById('header-actions');
+const userMenu = document.getElementById('user-menu');
+const userName = document.getElementById('user-name');
+const authModal = document.getElementById('auth-modal');
+const authModalTitle = document.getElementById('auth-modal-title');
+const authForm = document.getElementById('auth-form');
+const authName = document.getElementById('auth-name');
+const authEmail = document.getElementById('auth-email');
+const authPassword = document.getElementById('auth-password');
+const authError = document.getElementById('auth-error');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const nameGroup = document.getElementById('name-group');
+const authSwitchText = document.getElementById('auth-switch-text');
+const authSwitchBtn = document.getElementById('auth-switch-btn');
+
+// Recent Searches DOM Elements
+const recentSearchesSection = document.getElementById('recent-searches-section');
+const recentSearchesList = document.getElementById('recent-searches-list');
+
+// Trending Carousel DOM Elements
+const trendingCarousel = document.getElementById('trending-carousel');
+
+// Auth mode: 'login' or 'signup'
+let authMode = 'login';
 
 // ========================================
 // INPUT TYPE AUTO-DETECTION
@@ -62,40 +85,11 @@ function detectInputType(value) {
     if (!value || value.trim() === '') {
         return 'text';
     }
-
     if (URL_PATTERN.test(value.trim())) {
         return 'url';
     }
-
     return 'text';
 }
-
-function updateInputTypeBadge(type) {
-    detectedInputType = type;
-
-    // Update badge text and class
-    inputTypeBadge.textContent = type.charAt(0).toUpperCase() + type.slice(1);
-    inputTypeBadge.className = 'input-type-badge ' + type;
-
-    // Update input styling
-    searchInput.classList.remove('url-detected');
-    if (type === 'url') {
-        searchInput.classList.add('url-detected');
-    }
-}
-
-// Real-time input detection
-searchInput.addEventListener('input', (e) => {
-    const value = e.target.value;
-
-    // If we have an image selected, clear it when user starts typing
-    if (selectedImageFile && value.trim() !== '') {
-        clearSelectedImage();
-    }
-
-    const type = detectInputType(value);
-    updateInputTypeBadge(type);
-});
 
 // ========================================
 // IMAGE HANDLING
@@ -104,10 +98,6 @@ searchInput.addEventListener('input', (e) => {
 function setSelectedImage(file) {
     selectedImageFile = file;
     detectedInputType = 'image';
-
-    // Update badge
-    inputTypeBadge.textContent = 'Image';
-    inputTypeBadge.className = 'input-type-badge image';
 
     // Show preview
     const reader = new FileReader();
@@ -119,9 +109,9 @@ function setSelectedImage(file) {
     };
     reader.readAsDataURL(file);
 
-    // Clear text input
+    // Update placeholder
     searchInput.value = '';
-    searchInput.placeholder = 'Image selected - click Search or enter text to search';
+    searchInput.placeholder = 'Image selected - click Search';
 }
 
 function clearSelectedImage() {
@@ -131,11 +121,21 @@ function clearSelectedImage() {
     dropZoneContent.classList.remove('hidden');
     imagePreviewContainer.classList.add('hidden');
     imageDropZone.classList.remove('has-image');
+    imageDropZone.classList.remove('active');
 
-    // Reset to text mode
-    updateInputTypeBadge('text');
-    searchInput.placeholder = 'Search by product name, paste a URL, or drop an image...';
+    detectedInputType = 'text';
+    searchInput.placeholder = 'Search for any product...';
 }
+
+// Camera button click - toggle image drop zone
+cameraBtn.addEventListener('click', () => {
+    if (imageDropZone.classList.contains('active') || imageDropZone.classList.contains('has-image')) {
+        clearSelectedImage();
+    } else {
+        imageDropZone.classList.add('active');
+        imageInput.click();
+    }
+});
 
 // Image input change
 imageInput.addEventListener('change', (e) => {
@@ -146,8 +146,8 @@ imageInput.addEventListener('change', (e) => {
 });
 
 // Click on drop zone to trigger file input
-imageDropZone.addEventListener('click', () => {
-    if (!selectedImageFile) {
+imageDropZone.addEventListener('click', (e) => {
+    if (!selectedImageFile && e.target !== removeImageBtn) {
         imageInput.click();
     }
 });
@@ -180,67 +180,6 @@ imageDropZone.addEventListener('drop', (e) => {
     }
 });
 
-// Also allow dropping on the entire input container
-const unifiedInputContainer = document.getElementById('unified-input-container');
-unifiedInputContainer.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    imageDropZone.classList.add('dragover');
-});
-
-unifiedInputContainer.addEventListener('dragleave', (e) => {
-    if (!unifiedInputContainer.contains(e.relatedTarget)) {
-        imageDropZone.classList.remove('dragover');
-    }
-});
-
-unifiedInputContainer.addEventListener('drop', (e) => {
-    e.preventDefault();
-    imageDropZone.classList.remove('dragover');
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type.startsWith('image/')) {
-        setSelectedImage(files[0]);
-    }
-});
-
-// ========================================
-// SEARCH MODULE COLLAPSE/EXPAND
-// ========================================
-
-function toggleSearchModule() {
-    isSearchCollapsed = !isSearchCollapsed;
-
-    if (isSearchCollapsed) {
-        searchModule.classList.add('collapsed');
-        searchHeader.classList.add('collapsed');
-
-        if (currentQuery) {
-            searchQueryPreview.textContent = `"${currentQuery}"`;
-            searchQueryPreview.classList.remove('hidden');
-        }
-    } else {
-        searchModule.classList.remove('collapsed');
-        searchHeader.classList.remove('collapsed');
-        searchQueryPreview.classList.add('hidden');
-    }
-}
-
-function collapseSearchWithQuery(query) {
-    currentQuery = query;
-    isSearchCollapsed = true;
-    searchModule.classList.add('collapsed');
-    searchHeader.classList.add('collapsed');
-    searchQueryPreview.textContent = `"${query}"`;
-    searchQueryPreview.classList.remove('hidden');
-}
-
-function expandSearch() {
-    isSearchCollapsed = false;
-    searchModule.classList.remove('collapsed');
-    searchHeader.classList.remove('collapsed');
-    searchQueryPreview.classList.add('hidden');
-}
-
 // ========================================
 // CONFIDENCE THRESHOLD SLIDER
 // ========================================
@@ -250,25 +189,23 @@ confidenceThreshold.addEventListener('input', () => {
 });
 
 // ========================================
-// UNIFIED SEARCH HANDLER
+// SEARCH HANDLER
 // ========================================
 
 searchForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Determine what to search
     if (selectedImageFile) {
-        // Image search
         await performImageSearch(selectedImageFile);
     } else {
         const query = searchInput.value.trim();
         if (!query) {
-            showError('Please enter a product name, URL, or upload an image');
+            showError('Please enter a product name or upload an image');
             return;
         }
 
-        // Auto-detect type and search
         const inputType = detectInputType(query);
+        currentQuery = query;
         await performSearch(query, inputType);
     }
 });
@@ -278,9 +215,7 @@ async function performSearch(query, inputType) {
     showLoading();
     hideError();
     hideResults();
-
-    const displayQuery = inputType === 'url' ? 'URL: ' + new URL(query).hostname : query;
-    collapseSearchWithQuery(displayQuery);
+    hideTrendingSection();
 
     try {
         const response = await fetch(`${API_BASE}/search`, {
@@ -294,6 +229,7 @@ async function performSearch(query, inputType) {
                 enable_live_search: enableLiveSearch.checked,
                 confidence_threshold: confidenceThreshold.value / 100,
                 limit: 20,
+                sort_by: currentSortBy,
             }),
         });
 
@@ -302,11 +238,16 @@ async function performSearch(query, inputType) {
         }
 
         const data = await response.json();
+        lastSearchResults = data.results || [];
         displayResults(data);
+
+        // Refresh recent searches if logged in
+        if (currentUser) {
+            loadRecentSearches();
+        }
 
     } catch (error) {
         showError(error.message);
-        expandSearch();
     } finally {
         hideLoading();
     }
@@ -317,7 +258,8 @@ async function performImageSearch(file) {
     showLoading();
     hideError();
     hideResults();
-    collapseSearchWithQuery(`Image: ${file.name}`);
+    hideTrendingSection();
+    currentQuery = `Image: ${file.name}`;
 
     try {
         const formData = new FormData();
@@ -325,6 +267,7 @@ async function performImageSearch(file) {
         formData.append('enable_live_search', enableLiveSearch.checked);
         formData.append('confidence_threshold', confidenceThreshold.value / 100);
         formData.append('limit', 20);
+        formData.append('sort_by', currentSortBy);
 
         const response = await fetch(`${API_BASE}/search/image`, {
             method: 'POST',
@@ -336,15 +279,49 @@ async function performImageSearch(file) {
         }
 
         const data = await response.json();
+        lastSearchResults = data.results || [];
         displayResults(data);
+
+        // Refresh recent searches if logged in
+        if (currentUser) {
+            loadRecentSearches();
+        }
 
     } catch (error) {
         showError(error.message);
-        expandSearch();
     } finally {
         hideLoading();
     }
 }
+
+// ========================================
+// SORT FUNCTIONALITY
+// ========================================
+
+function handleSortChange() {
+    currentSortBy = sortBySelect.value;
+
+    // Re-sort existing results client-side
+    if (lastSearchResults.length > 0) {
+        const sorted = sortResults(lastSearchResults, currentSortBy);
+        resultsGrid.innerHTML = sorted.map((product, index) => createProductCard(product, index)).join('');
+    }
+}
+
+function sortResults(results, sortBy) {
+    const sorted = [...results];
+    if (sortBy === 'price_low_high') {
+        sorted.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
+    } else if (sortBy === 'price_high_low') {
+        sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+    } else {
+        // Default: relevance (by confidence)
+        sorted.sort((a, b) => (b.match_confidence || 0) - (a.match_confidence || 0));
+    }
+    return sorted;
+}
+
+window.handleSortChange = handleSortChange;
 
 // ========================================
 // DISPLAY RESULTS
@@ -364,56 +341,6 @@ function displayResults(data) {
 
     // Update counts
     resultCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
-    processingTime.textContent = `${data.processing_time_ms}ms`;
-
-    let queryInfoHtml = '<div class="query-info-row">';
-
-    if (props.name) {
-        queryInfoHtml += `
-            <div class="query-info-item">
-                <span class="query-info-label">Query:</span>
-                <span class="query-info-value">${escapeHtml(props.name)}</span>
-            </div>`;
-    }
-
-    if (props.brand) {
-        queryInfoHtml += `
-            <div class="query-info-item">
-                <span class="query-info-label">Brand:</span>
-                <span class="query-info-value">${escapeHtml(props.brand)}</span>
-            </div>`;
-    }
-
-    if (props.category) {
-        queryInfoHtml += `
-            <div class="query-info-item">
-                <span class="query-info-label">Category:</span>
-                <span class="query-info-value">${escapeHtml(props.category)}</span>
-            </div>`;
-    }
-
-    queryInfoHtml += `
-        <div class="query-info-item">
-            <span class="query-info-label">Method:</span>
-            <span class="query-info-value">${qi.search_method || 'N/A'}</span>
-        </div>`;
-
-    if (qi.live_search_triggered) {
-        queryInfoHtml += `
-            <div class="query-info-item">
-                <span class="query-info-value live-search">Live search triggered</span>
-            </div>`;
-    }
-
-    queryInfoHtml += '</div>';
-
-    // Add trace link if available
-    if (data.trace_id) {
-        const traceUrl = `https://smith.langchain.com/o/default/projects/p/price-compare/r/${data.trace_id}`;
-        queryInfoHtml += `<a href="${traceUrl}" target="_blank" class="trace-link">View trace in LangSmith</a>`;
-    }
-
-    queryInfo.innerHTML = queryInfoHtml;
 
     // Display results grid
     resultsGrid.innerHTML = results.map((product, index) => createProductCard(product, index)).join('');
@@ -424,27 +351,20 @@ function displayResults(data) {
 // Create product card HTML
 function createProductCard(product, index) {
     const name = product.name || 'Unknown Product';
-    const price = product.price ? formatPrice(product.price, product.currency) : 'N/A';
-    const merchant = product.merchant || 'Unknown Merchant';
+    const price = product.price ? formatPrice(product.price, product.currency) : 'Price N/A';
+    const merchant = product.merchant || 'Unknown';
+    const brand = extractBrand(name, product.brand);
     const imageUrl = product.image_url;
     const sourceUrl = product.source_url;
     const confidence = product.match_confidence || 0;
-    const source = product.match_source || 'database';
     const productId = product.id || product.product_id || null;
 
-    const confidenceClass = confidence >= 0.8 ? 'confidence-high' :
-                           confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
+    // Confidence level
+    const confidencePercent = Math.round(confidence * 100);
+    const confidenceClass = confidence >= 0.8 ? '' : confidence >= 0.5 ? 'medium' : 'low';
 
-    // Generate placeholder with product initials if no image
-    const initials = name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    const placeholderColor = stringToColor(name);
-
-    const badgeClass = source === 'live' ? 'live' : 'db';
-    const badgeText = source === 'live' ? 'Live' : 'DB';
-
-    const imageHtml = imageUrl
-        ? `<img src="${imageUrl}" alt="${escapeHtml(name)}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background: ${placeholderColor}\\'>${initials}</div>'">`
-        : `<div class="product-image placeholder" style="background: ${placeholderColor}">${initials}</div>`;
+    // Generate placeholder with gradient
+    const gradientColors = getGradientForString(name);
 
     // Encode product data for feedback
     const feedbackData = encodeURIComponent(JSON.stringify({
@@ -454,46 +374,343 @@ function createProductCard(product, index) {
         confidence: confidence,
     }));
 
+    const imageHtml = imageUrl
+        ? `<img src="${imageUrl}" alt="${escapeHtml(name)}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background: ${gradientColors}\\'>${getInitials(name)}</div>'">`
+        : `<div class="product-image placeholder" style="background: ${gradientColors}">${getInitials(name)}</div>`;
+
     return `
         <article class="product-card" data-product-index="${index}">
             <div class="product-image-container">
                 ${imageHtml}
-                <span class="product-badge ${badgeClass}">${badgeText}</span>
+                <div class="product-badges">
+                    <div class="confidence-pill">
+                        <span class="confidence-dot ${confidenceClass}"></span>
+                        <span>${confidencePercent}%</span>
+                    </div>
+                    <div class="merchant-pill">${escapeHtml(merchant)}</div>
+                </div>
             </div>
             <div class="product-info">
+                <div class="product-brand">${escapeHtml(brand)}</div>
                 <h3 class="product-name">${escapeHtml(name)}</h3>
-                <p class="product-price">${price}</p>
-                <p class="product-merchant">${escapeHtml(merchant)}</p>
-                <div class="product-footer">
-                    <span class="confidence-badge ${confidenceClass}">
-                        ${(confidence * 100).toFixed(0)}% match
-                    </span>
-                    ${sourceUrl ? `<a href="${sourceUrl}" target="_blank" class="product-link">View Product</a>` : ''}
+                <div class="product-price-row">
+                    <span class="product-price">${price}</span>
+                    <div class="product-feedback-mini" data-feedback="${feedbackData}">
+                        <button class="feedback-btn-mini thumbs-up" onclick="submitFeedback(this, 1)" title="Good match">👍</button>
+                        <button class="feedback-btn-mini thumbs-down" onclick="submitFeedback(this, -1)" title="Poor match">👎</button>
+                    </div>
                 </div>
-                <div class="product-feedback" data-feedback="${feedbackData}">
-                    <span class="feedback-label">Was this helpful?</span>
-                    <button class="feedback-btn thumbs-up" onclick="submitFeedback(this, 1)" title="Good match">
-                        <span class="feedback-icon">👍</span>
-                    </button>
-                    <button class="feedback-btn thumbs-down" onclick="submitFeedback(this, -1)" title="Poor match">
-                        <span class="feedback-icon">👎</span>
-                    </button>
-                    <span class="feedback-status"></span>
-                </div>
+                <p class="product-description">${generateDescription(name, brand, merchant)}</p>
+                ${sourceUrl
+                    ? `<a href="${sourceUrl}" target="_blank" class="product-cta">
+                        <span class="product-cta-icon">🛒</span>
+                        Get it on ${escapeHtml(merchant)}
+                       </a>`
+                    : `<button class="product-cta" disabled>
+                        <span class="product-cta-icon">🛒</span>
+                        View on ${escapeHtml(merchant)}
+                       </button>`
+                }
             </div>
         </article>
     `;
 }
 
-// Generate a consistent color from a string
-function stringToColor(str) {
+// Extract brand from product name
+function extractBrand(name, explicitBrand) {
+    if (explicitBrand) return explicitBrand;
+
+    // Common brand patterns - first word is often the brand
+    const words = name.split(' ');
+    if (words.length > 0) {
+        const firstWord = words[0];
+        // If first word looks like a brand (capitalized, not a common word)
+        const commonWords = ['the', 'a', 'an', 'new', 'used', 'vintage', 'original'];
+        if (!commonWords.includes(firstWord.toLowerCase()) && firstWord.length > 1) {
+            return firstWord;
+        }
+    }
+    return 'Product';
+}
+
+// Generate a short description
+function generateDescription(name, brand, merchant) {
+    const descriptors = [
+        `Available at ${merchant}`,
+        `Shop ${brand} products`,
+        `Find great deals on ${brand}`,
+    ];
+    return descriptors[Math.floor(Math.random() * descriptors.length)];
+}
+
+// Get initials for placeholder
+function getInitials(name) {
+    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+// Generate gradient for placeholder
+function getGradientForString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const hue = hash % 360;
-    return `linear-gradient(135deg, hsl(${hue}, 60%, 45%), hsl(${(hue + 40) % 360}, 50%, 35%))`;
+    const hue = Math.abs(hash % 360);
+    return `linear-gradient(135deg, hsl(${hue}, 70%, 60%), hsl(${(hue + 40) % 360}, 60%, 50%))`;
 }
+
+// ========================================
+// FEEDBACK SUBMISSION
+// ========================================
+
+async function submitFeedback(button, rating) {
+    const feedbackContainer = button.closest('.product-feedback-mini');
+    const productData = JSON.parse(decodeURIComponent(feedbackContainer.dataset.feedback));
+
+    // Disable buttons while submitting
+    const buttons = feedbackContainer.querySelectorAll('.feedback-btn-mini');
+    buttons.forEach(btn => btn.disabled = true);
+
+    try {
+        const response = await fetch(`${API_BASE}/feedback`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: lastSearchContext.query,
+                query_type: lastSearchContext.queryType,
+                rating: rating,
+                trace_id: lastSearchContext.traceId,
+                result_product_id: productData.productId,
+                result_name: productData.name,
+                result_merchant: productData.merchant,
+                result_confidence: productData.confidence,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to submit feedback');
+        }
+
+        // Highlight the selected button
+        buttons.forEach(btn => btn.classList.remove('selected'));
+        button.classList.add('selected');
+
+    } catch (error) {
+        console.error('Feedback error:', error);
+        // Re-enable buttons on error
+        buttons.forEach(btn => btn.disabled = false);
+    }
+}
+
+// Make submitFeedback available globally
+window.submitFeedback = submitFeedback;
+
+// ========================================
+// AUTHENTICATION
+// ========================================
+
+function showAuthModal(mode) {
+    authMode = mode;
+    authModal.classList.remove('hidden');
+    authError.classList.add('hidden');
+    authForm.reset();
+
+    if (mode === 'signup') {
+        authModalTitle.textContent = 'Sign Up';
+        authSubmitBtn.textContent = 'Create Account';
+        nameGroup.classList.remove('hidden');
+        authSwitchText.textContent = 'Already have an account?';
+        authSwitchBtn.textContent = 'Log In';
+    } else {
+        authModalTitle.textContent = 'Log In';
+        authSubmitBtn.textContent = 'Log In';
+        nameGroup.classList.add('hidden');
+        authSwitchText.textContent = "Don't have an account?";
+        authSwitchBtn.textContent = 'Sign Up';
+    }
+}
+
+function hideAuthModal() {
+    authModal.classList.add('hidden');
+}
+
+function toggleAuthMode() {
+    showAuthModal(authMode === 'login' ? 'signup' : 'login');
+}
+
+async function handleAuthSubmit(event) {
+    event.preventDefault();
+
+    authError.classList.add('hidden');
+    authSubmitBtn.disabled = true;
+    authSubmitBtn.textContent = authMode === 'login' ? 'Logging in...' : 'Creating account...';
+
+    try {
+        const endpoint = authMode === 'login' ? '/auth/login' : '/auth/signup';
+        const body = {
+            email: authEmail.value,
+            password: authPassword.value,
+        };
+
+        if (authMode === 'signup') {
+            body.name = authName.value || null;
+        }
+
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Authentication failed');
+        }
+
+        // Success - update UI
+        currentUser = data.user;
+        updateAuthUI();
+        hideAuthModal();
+        loadRecentSearches();
+
+    } catch (error) {
+        authError.textContent = error.message;
+        authError.classList.remove('hidden');
+    } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = authMode === 'login' ? 'Log In' : 'Create Account';
+    }
+}
+
+async function logout() {
+    try {
+        await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+
+    currentUser = null;
+    updateAuthUI();
+    recentSearchesSection.classList.add('hidden');
+}
+
+function updateAuthUI() {
+    if (currentUser) {
+        headerActions.classList.add('hidden');
+        userMenu.classList.remove('hidden');
+        userName.textContent = currentUser.name || currentUser.email;
+    } else {
+        headerActions.classList.remove('hidden');
+        userMenu.classList.add('hidden');
+    }
+}
+
+async function checkAuthStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/auth/me`);
+        const data = await response.json();
+
+        if (data.user) {
+            currentUser = data.user;
+            updateAuthUI();
+            loadRecentSearches();
+        }
+    } catch (error) {
+        console.error('Auth check error:', error);
+    }
+}
+
+// Make auth functions global
+window.showAuthModal = showAuthModal;
+window.hideAuthModal = hideAuthModal;
+window.toggleAuthMode = toggleAuthMode;
+window.handleAuthSubmit = handleAuthSubmit;
+window.logout = logout;
+
+// ========================================
+// RECENT SEARCHES
+// ========================================
+
+async function loadRecentSearches() {
+    if (!currentUser) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/auth/history`);
+        const data = await response.json();
+
+        if (data.history && data.history.length > 0) {
+            recentSearchesSection.classList.remove('hidden');
+            recentSearchesList.innerHTML = data.history.map(item => {
+                const icon = item.query_type === 'image' ? '📷' : item.query_type === 'url' ? '🔗' : '🔍';
+                return `
+                    <div class="recent-search-item" onclick="executeRecentSearch('${escapeHtml(item.query)}', '${item.query_type}')">
+                        <span class="recent-search-icon">${icon}</span>
+                        <span>${escapeHtml(item.query.substring(0, 40))}${item.query.length > 40 ? '...' : ''}</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            recentSearchesSection.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Failed to load recent searches:', error);
+    }
+}
+
+function executeRecentSearch(query, queryType) {
+    if (queryType === 'image') {
+        // Can't re-execute image searches from history
+        return;
+    }
+
+    searchInput.value = query;
+    performSearch(query, queryType);
+}
+
+async function clearSearchHistory() {
+    try {
+        await fetch(`${API_BASE}/auth/history`, { method: 'DELETE' });
+        recentSearchesSection.classList.add('hidden');
+    } catch (error) {
+        console.error('Failed to clear history:', error);
+    }
+}
+
+window.executeRecentSearch = executeRecentSearch;
+window.clearSearchHistory = clearSearchHistory;
+
+// ========================================
+// TRENDING CATEGORIES
+// ========================================
+
+function searchCategory(category) {
+    searchInput.value = category;
+    performSearch(category, 'text');
+}
+
+function scrollCarousel(direction) {
+    const scrollAmount = 160; // Card width + gap
+    trendingCarousel.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
+}
+
+function hideTrendingSection() {
+    const trendingSection = document.getElementById('trending-section');
+    if (trendingSection) {
+        trendingSection.classList.add('hidden');
+    }
+}
+
+function showTrendingSection() {
+    const trendingSection = document.getElementById('trending-section');
+    if (trendingSection) {
+        trendingSection.classList.remove('hidden');
+    }
+}
+
+window.searchCategory = searchCategory;
+window.scrollCarousel = scrollCarousel;
 
 // ========================================
 // UTILITY FUNCTIONS
@@ -505,13 +722,14 @@ function formatPrice(price, currency = 'USD') {
         'EUR': '€',
         'GBP': '£',
         'JPY': '¥',
-        'SEK': 'kr',
+        'SEK': 'kr ',
     };
     const symbol = symbols[currency] || currency + ' ';
     return `${symbol}${price.toFixed(2)}`;
 }
 
 function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
@@ -536,7 +754,7 @@ function showLoading() {
     // Start timer
     loadingTimer = setInterval(() => {
         const elapsed = ((Date.now() - loadingStartTime) / 1000).toFixed(1);
-        loadingTime.textContent = `Elapsed: ${elapsed}s`;
+        loadingTime.textContent = `${elapsed}s`;
     }, 100);
 }
 
@@ -551,8 +769,8 @@ function hideLoading() {
 function updateLoadingStep(step) {
     const steps = [
         { el: stepExtract, status: 'Analyzing your query...' },
-        { el: stepSearch, status: 'Searching product database...' },
-        { el: stepRank, status: 'Ranking and filtering results...' }
+        { el: stepSearch, status: 'Searching databases...' },
+        { el: stepRank, status: 'Ranking results...' }
     ];
 
     steps.forEach((s, i) => {
@@ -568,9 +786,9 @@ function updateLoadingStep(step) {
         }
     });
 
-    // Auto-advance steps for demo
+    // Auto-advance steps
     if (step < 3) {
-        setTimeout(() => updateLoadingStep(step + 1), 1500);
+        setTimeout(() => updateLoadingStep(step + 1), 1200);
     }
 }
 
@@ -603,6 +821,8 @@ function toggleContributeForm() {
     const form = document.getElementById('contribute-form');
     form.classList.toggle('hidden');
 }
+
+window.toggleContributeForm = toggleContributeForm;
 
 async function submitProduct(event) {
     event.preventDefault();
@@ -649,63 +869,7 @@ async function submitProduct(event) {
     }
 }
 
-// ========================================
-// FEEDBACK SUBMISSION
-// ========================================
-
-async function submitFeedback(button, rating) {
-    const feedbackContainer = button.closest('.product-feedback');
-    const statusEl = feedbackContainer.querySelector('.feedback-status');
-    const productData = JSON.parse(decodeURIComponent(feedbackContainer.dataset.feedback));
-
-    // Disable buttons while submitting
-    const buttons = feedbackContainer.querySelectorAll('.feedback-btn');
-    buttons.forEach(btn => btn.disabled = true);
-
-    // Show loading
-    statusEl.textContent = '...';
-    statusEl.className = 'feedback-status loading';
-
-    try {
-        const response = await fetch(`${API_BASE}/feedback`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                query: lastSearchContext.query,
-                query_type: lastSearchContext.queryType,
-                rating: rating,
-                trace_id: lastSearchContext.traceId,
-                result_product_id: productData.productId,
-                result_name: productData.name,
-                result_merchant: productData.merchant,
-                result_confidence: productData.confidence,
-            }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to submit feedback');
-        }
-
-        // Show success
-        statusEl.textContent = rating === 1 ? 'Thanks!' : 'Got it!';
-        statusEl.className = 'feedback-status success';
-
-        // Highlight the selected button
-        buttons.forEach(btn => btn.classList.remove('selected'));
-        button.classList.add('selected');
-
-        // Keep buttons disabled to prevent duplicate submissions
-    } catch (error) {
-        console.error('Feedback error:', error);
-        statusEl.textContent = 'Error';
-        statusEl.className = 'feedback-status error';
-
-        // Re-enable buttons on error
-        buttons.forEach(btn => btn.disabled = false);
-    }
-}
+window.submitProduct = submitProduct;
 
 // ========================================
 // KEYBOARD SHORTCUTS
@@ -715,22 +879,21 @@ document.addEventListener('keydown', (e) => {
     // Press '/' to focus search
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
         e.preventDefault();
-        expandSearch();
         searchInput.focus();
     }
 
-    // Press 'Escape' to collapse search or clear image
+    // Press 'Escape' to clear image or close modal
     if (e.key === 'Escape') {
-        if (selectedImageFile) {
+        if (!authModal.classList.contains('hidden')) {
+            hideAuthModal();
+        } else if (selectedImageFile) {
             clearSelectedImage();
-        } else if (!isSearchCollapsed) {
-            collapseSearchWithQuery(currentQuery);
         }
     }
 });
 
 // ========================================
-// PASTE HANDLER (for URLs and images)
+// PASTE HANDLER
 // ========================================
 
 searchInput.addEventListener('paste', (e) => {
@@ -742,18 +905,23 @@ searchInput.addEventListener('paste', (e) => {
                 e.preventDefault();
                 const file = item.getAsFile();
                 if (file) {
+                    imageDropZone.classList.add('active');
                     setSelectedImage(file);
                 }
                 return;
             }
         }
     }
+});
 
-    // For text paste, let it happen naturally and detect on next tick
-    setTimeout(() => {
-        const type = detectInputType(searchInput.value);
-        updateInputTypeBadge(type);
-    }, 0);
+// ========================================
+// MODAL CLOSE ON OUTSIDE CLICK
+// ========================================
+
+authModal.addEventListener('click', (e) => {
+    if (e.target === authModal) {
+        hideAuthModal();
+    }
 });
 
 // ========================================
@@ -761,11 +929,9 @@ searchInput.addEventListener('paste', (e) => {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Price Compare initialized - Unified Input');
-
-    // Focus text input on load
+    console.log('PriceHawk initialized');
     searchInput.focus();
 
-    // Initialize badge
-    updateInputTypeBadge('text');
+    // Check if user is already logged in
+    checkAuthStatus();
 });

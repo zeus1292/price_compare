@@ -19,6 +19,9 @@ from src.database.models import (
     ProductAttribute,
     SearchCache,
     SearchFeedback,
+    SearchHistory,
+    User,
+    hash_password,
     init_db,
 )
 
@@ -532,6 +535,117 @@ class SQLiteManager:
                 "unique_merchants": merchants.scalar() or 0,
                 "unique_markets": markets.scalar() or 0,
             }
+
+    # User Operations
+
+    async def create_user(self, email: str, password: str, name: Optional[str] = None) -> User:
+        """Create a new user account."""
+        async with self.async_session() as session:
+            user = User(
+                email=email.lower().strip(),
+                password_hash=hash_password(password),
+                name=name,
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+            return user
+
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(User).where(User.email == email.lower().strip())
+            )
+            return result.scalar_one_or_none()
+
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            return result.scalar_one_or_none()
+
+    async def verify_user(self, email: str, password: str) -> Optional[User]:
+        """Verify user credentials and return user if valid."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(User).where(
+                    and_(
+                        User.email == email.lower().strip(),
+                        User.password_hash == hash_password(password),
+                        User.is_active == True
+                    )
+                )
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                # Update last login
+                user.last_login = datetime.utcnow()
+                await session.commit()
+            return user
+
+    async def update_last_login(self, user_id: str) -> None:
+        """Update user's last login timestamp."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            if user:
+                user.last_login = datetime.utcnow()
+                await session.commit()
+
+    # Search History Operations
+
+    async def add_search_history(
+        self,
+        user_id: str,
+        query: str,
+        query_type: str,
+        result_count: int = 0
+    ) -> SearchHistory:
+        """Add a search to user's history."""
+        async with self.async_session() as session:
+            history = SearchHistory(
+                user_id=user_id,
+                query=query,
+                query_type=query_type,
+                result_count=result_count,
+            )
+            session.add(history)
+            await session.commit()
+            await session.refresh(history)
+            return history
+
+    async def get_recent_searches(
+        self,
+        user_id: str,
+        limit: int = 5
+    ) -> List[SearchHistory]:
+        """Get user's recent search history."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(SearchHistory)
+                .where(SearchHistory.user_id == user_id)
+                .order_by(SearchHistory.created_at.desc())
+                .limit(limit)
+            )
+            return list(result.scalars().all())
+
+    async def clear_search_history(self, user_id: str) -> int:
+        """Clear all search history for a user. Returns count of deleted records."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(SearchHistory).where(SearchHistory.user_id == user_id)
+            )
+            histories = result.scalars().all()
+            count = len(histories)
+            for history in histories:
+                await session.delete(history)
+            await session.commit()
+            return count
 
     def close(self) -> None:
         """Close database connections."""

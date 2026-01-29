@@ -4,8 +4,10 @@ SQLAlchemy ORM models for the product database.
 from datetime import datetime
 from typing import Optional
 import uuid
+import hashlib
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Float,
@@ -28,6 +30,12 @@ class Base(DeclarativeBase):
 def generate_uuid() -> str:
     """Generate a new UUID string."""
     return str(uuid.uuid4())
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256 with salt."""
+    salt = "pricehawk_salt_2024"
+    return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
 class Product(Base):
@@ -184,6 +192,80 @@ class SearchFeedback(Base):
             "result_confidence": self.result_confidence,
             "rating": self.rating,
             "comment": self.comment,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class User(Base):
+    """
+    User account for authentication and personalization.
+    """
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(64), nullable=False)
+    name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+
+    # Relationships
+    search_history = relationship(
+        "SearchHistory",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="desc(SearchHistory.created_at)"
+    )
+
+    __table_args__ = (
+        Index("idx_users_email", "email"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert user to dictionary (excluding password)."""
+        return {
+            "id": self.id,
+            "email": self.email,
+            "name": self.name,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+        }
+
+
+class SearchHistory(Base):
+    """
+    Track user search history for personalization.
+    """
+    __tablename__ = "search_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    query = Column(Text, nullable=False)
+    query_type = Column(String(20), nullable=False)  # 'text', 'url', 'image'
+    result_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="search_history")
+
+    __table_args__ = (
+        Index("idx_search_history_user", "user_id"),
+        Index("idx_search_history_created", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert search history to dictionary."""
+        return {
+            "id": self.id,
+            "query": self.query,
+            "query_type": self.query_type,
+            "result_count": self.result_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

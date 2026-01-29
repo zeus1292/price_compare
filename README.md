@@ -1,4 +1,4 @@
-# Price Compare
+# PriceHawk
 
 A multi-agent product matching tool that allows users to search for products via text, URL, or image input. Built with LangGraph for agent orchestration, hybrid search (SQL + vector similarity), and LangSmith for observability.
 
@@ -9,10 +9,14 @@ A multi-agent product matching tool that allows users to search for products via
 - **Hybrid Search Engine**: Combines SQL filtering with vector similarity using Reciprocal Rank Fusion
 - **Multi-Agent Architecture**: LangGraph-powered agents for property extraction, database matching, and live web search
 - **Live Search with Caching**: Tavily-powered web search with intelligent result caching (30-min TTL)
+- **User Authentication**: Sign up/login with session-based auth for personalized experience
+- **Recent Searches**: Logged-in users see their last 5 searches for quick re-execution
+- **Trending Categories**: Carousel of popular categories (Electronics, Fashion, Home & Kitchen, Beauty, Sports & Outdoors)
+- **Sort Results**: Sort by Relevance, Price Low to High, or Price High to Low
 - **User Feedback System**: Thumbs up/down ratings on results for quality tracking
 - **Precision/Recall Metrics**: Built-in search quality analytics and reporting
 - **Real-time Observability**: Full tracing with LangSmith for debugging and optimization
-- **Modern Dark Theme UI**: Amazon-style interface with collapsible search and confidence scores
+- **Modern Light Theme UI**: Clean interface with confidence badges and merchant pills on product cards
 
 ## Architecture
 
@@ -20,6 +24,7 @@ A multi-agent product matching tool that allows users to search for products via
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Web UI (Unified Input)                        │
 │              Auto-detects: Text | URL | Image                    │
+│         + Auth | Trending Categories | Recent Searches           │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -46,11 +51,12 @@ A multi-agent product matching tool that allows users to search for products via
 
 - **Backend**: Python 3.9+, FastAPI, SQLAlchemy
 - **Agent Framework**: LangChain, LangGraph
-- **Databases**: SQLite (structured data), ChromaDB (vector embeddings)
+- **Databases**: SQLite (structured data + users), ChromaDB (vector embeddings)
 - **LLMs**: OpenAI GPT-4o-mini (default), Anthropic Claude (optional)
 - **Image Embeddings**: CLIP ViT-B-32 via sentence-transformers
 - **Text Embeddings**: OpenAI text-embedding-3-small
 - **Search**: Tavily API for live web search (with caching)
+- **Authentication**: Session-based auth with HTTP-only cookies
 - **Observability**: LangSmith
 
 ## Quick Start
@@ -108,12 +114,13 @@ Price_Compare/
 │   ├── api/                       # FastAPI application
 │   │   ├── main.py
 │   │   └── routes/
+│   │       ├── auth.py            # Authentication (signup/login/logout)
 │   │       ├── search.py          # Search endpoints
 │   │       ├── products.py        # Product CRUD
 │   │       ├── feedback.py        # User feedback
 │   │       └── dataset.py         # Data ingestion
 │   ├── database/                  # Data layer
-│   │   ├── models.py              # SQLAlchemy models
+│   │   ├── models.py              # SQLAlchemy models (Product, User, SearchHistory)
 │   │   ├── sqlite_manager.py      # SQLite operations
 │   │   └── chroma_manager.py      # Vector store (3 collections)
 │   ├── services/                  # Business logic
@@ -127,7 +134,10 @@ Price_Compare/
 │   │   └── batch_processor.py
 │   └── web/                       # Frontend
 │       ├── templates/
+│       │   └── index.html         # Main UI template
 │       └── static/
+│           ├── css/styles.css     # Light theme styles
+│           └── js/app.js          # Frontend logic
 ├── data/                          # Database storage
 ├── requirements.txt
 └── README.md
@@ -135,11 +145,22 @@ Price_Compare/
 
 ## API Endpoints
 
+### Authentication
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/signup` | POST | Create new user account |
+| `/api/v1/auth/login` | POST | Login with email/password |
+| `/api/v1/auth/logout` | POST | Logout and clear session |
+| `/api/v1/auth/me` | GET | Get current user info |
+| `/api/v1/auth/history` | GET | Get user's recent searches |
+| `/api/v1/auth/history` | DELETE | Clear user's search history |
+
 ### Search
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/search` | POST | Search products (text/URL/image) |
+| `/api/v1/search` | POST | Search products (text/URL/image) with sort_by option |
 | `/api/v1/search/image` | POST | Search by image upload |
 | `/api/v1/search/stats` | GET | Database & cache statistics |
 | `/api/v1/search/metrics` | GET | Precision/recall metrics |
@@ -180,6 +201,28 @@ The search input automatically detects:
 - **URL**: Paste any product page URL (detected via regex)
 - **Image**: Drag & drop, paste from clipboard, or click to upload
 
+### Trending Categories
+The landing page displays a carousel of 5 trending categories:
+- Electronics
+- Fashion
+- Home & Kitchen
+- Beauty
+- Sports & Outdoors
+
+Click any category to search for products in that category.
+
+### Recent Searches (Logged-in Users)
+When logged in, users see their last 5 searches below the search bar:
+- Click to re-execute a previous search
+- Clear button to remove all history
+- Automatically updates after each search
+
+### Sort Results
+Results can be sorted by:
+- **Relevance** (default) - Sorted by match confidence
+- **Price: Low to High** - Cheapest first
+- **Price: High to Low** - Most expensive first
+
 ### CLIP Image Search
 When searching with an image:
 1. CLIP generates a 512-dimensional embedding (~50ms)
@@ -196,6 +239,26 @@ When searching with an image:
 - Tavily results cached for 30 minutes
 - Reduces API calls and improves response time
 - Cache stats available via `/api/v1/search/stats`
+
+## User Authentication
+
+PriceHawk supports user accounts for personalized features:
+
+### Sign Up
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "securepass", "name": "John"}'
+```
+
+### Login
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "securepass"}'
+```
+
+Sessions are stored server-side with HTTP-only cookies (24-hour expiration).
 
 ## Metrics & Analytics
 
@@ -243,7 +306,21 @@ See `example.env` for all configuration options:
 | `ENABLE_LIVE_SEARCH` | Enable web search fallback | `true` |
 | `DEFAULT_SEARCH_LIMIT` | Max results per search | `10` |
 
-## ChromaDB Collections
+## Database Schema
+
+### SQLite Tables
+
+| Table | Description |
+|-------|-------------|
+| `products` | Product catalog with name, price, merchant, etc. |
+| `product_attributes` | Flexible key-value attributes for products |
+| `search_cache` | Cached search results with TTL |
+| `search_feedback` | User feedback on search results |
+| `users` | User accounts (email, password hash, name) |
+| `search_history` | User search history (last 5 per user) |
+| `ingestion_log` | Dataset processing progress |
+
+### ChromaDB Collections
 
 | Collection | Embedding | Dimensions | Purpose |
 |------------|-----------|------------|---------|
@@ -296,7 +373,7 @@ curl -X POST http://localhost:8000/api/v1/dataset/ingest \
 | Key | Action |
 |-----|--------|
 | `/` | Focus search input |
-| `Escape` | Collapse search / clear image |
+| `Escape` | Close modal / clear image |
 | `Ctrl+V` | Paste image from clipboard |
 
 ## Performance Optimizations
@@ -306,6 +383,7 @@ curl -X POST http://localhost:8000/api/v1/dataset/ingest \
 3. **Fast Mode for Live Search**: Heuristic parsing instead of LLM
 4. **Parallel LLM Calls**: Concurrent result parsing with asyncio.gather()
 5. **Confidence Filtering**: Early filtering reduces processing
+6. **Client-side Sorting**: Re-sort results without API calls
 
 ## License
 
