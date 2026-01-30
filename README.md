@@ -1,4 +1,4 @@
-# PriceHawk
+# Retail Right
 
 A multi-agent product matching tool that allows users to search for products via text, URL, or image input. Built with LangGraph for agent orchestration, hybrid search (SQL + vector similarity), and LangSmith for observability.
 
@@ -9,6 +9,7 @@ A multi-agent product matching tool that allows users to search for products via
 - **Hybrid Search Engine**: Combines SQL filtering with vector similarity using Reciprocal Rank Fusion
 - **Multi-Agent Architecture**: LangGraph-powered agents for property extraction, database matching, and live web search
 - **Live Search with Caching**: Tavily-powered web search with intelligent result caching (30-min TTL)
+- **Validated Product Images**: Only displays images from verified retail websites and CDNs
 - **User Authentication**: Sign up/login with session-based auth for personalized experience
 - **Recent Searches**: Logged-in users see their last 5 searches for quick re-execution
 - **Trending Categories**: Carousel of popular categories (Electronics, Fashion, Home & Kitchen, Beauty, Sports & Outdoors)
@@ -16,7 +17,8 @@ A multi-agent product matching tool that allows users to search for products via
 - **User Feedback System**: Thumbs up/down ratings on results for quality tracking
 - **Precision/Recall Metrics**: Built-in search quality analytics and reporting
 - **Real-time Observability**: Full tracing with LangSmith for debugging and optimization
-- **Modern Light Theme UI**: Clean interface with confidence badges and merchant pills on product cards
+- **Apple-Inspired UI Design**: Clean, minimalist interface with SF Pro typography, frosted glass header, and pastel accent colors
+- **Pastel Color Theme**: Soft color palette (pink, lavender, mint, peach, sky blue) for category cards and UI accents
 
 ## Architecture
 
@@ -223,6 +225,13 @@ Results can be sorted by:
 - **Price: Low to High** - Cheapest first
 - **Price: High to Low** - Most expensive first
 
+### Validated Product Images
+Product images are validated before display to ensure quality:
+- Only shows images from verified retail websites and CDNs
+- Validates URLs from 50+ trusted domains (Amazon, Walmart, Target, eBay, etc.)
+- Falls back to gradient placeholder if image source is untrusted
+- Prevents display of broken, incorrect, or potentially malicious images
+
 ### CLIP Image Search
 When searching with an image:
 1. CLIP generates a 512-dimensional embedding (~50ms)
@@ -242,7 +251,7 @@ When searching with an image:
 
 ## User Authentication
 
-PriceHawk supports user accounts for personalized features:
+Retail Right supports user accounts for personalized features:
 
 ### Sign Up
 ```bash
@@ -375,6 +384,38 @@ curl -X POST http://localhost:8000/api/v1/dataset/ingest \
 | `/` | Focus search input |
 | `Escape` | Close modal / clear image |
 | `Ctrl+V` | Paste image from clipboard |
+
+## UI Design
+
+### Apple-Inspired Design System
+
+Retail Right features a clean, minimalist UI inspired by Apple's design language:
+
+- **Typography**: SF Pro Display/Text font family with anti-aliased rendering
+- **Frosted Glass Header**: Semi-transparent header with backdrop blur effect
+- **Rounded Corners**: Generous border radius throughout (12-24px)
+- **Subtle Shadows**: Multi-layer shadows for depth without harshness
+- **Smooth Transitions**: 200-300ms ease animations on all interactive elements
+
+### Pastel Color Palette
+
+Category cards and UI accents use a soft pastel palette:
+
+| Color | CSS Variable | Use Case |
+|-------|-------------|----------|
+| Pink | `--pastel-pink: #ffd6e0` | Electronics category |
+| Lavender | `--pastel-lavender: #e6e0ff` | Fashion category, Recent Searches |
+| Mint | `--pastel-mint: #d4f5e9` | Home & Kitchen category |
+| Peach | `--pastel-peach: #ffe5d4` | Beauty category |
+| Sky Blue | `--pastel-sky: #d4e9ff` | Sports & Outdoors category |
+
+### Key UI Components
+
+- **Category Cards**: Left-colored border accent with pastel hover background
+- **Product Cards**: Clean white cards with confidence badges and merchant pills
+- **Search Module**: Rounded input with focus ring effect
+- **Auth Modal**: Centered modal with backdrop blur
+- **Results Grid**: Responsive grid with hover lift animations
 
 ## Performance Optimizations
 

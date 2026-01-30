@@ -1,5 +1,5 @@
 /**
- * PriceHawk - Smart Product Price Comparison
+ * Retail Right - Smart Product Price Comparison
  * Light theme with auth, trending categories, and recent searches
  */
 
@@ -348,6 +348,90 @@ function displayResults(data) {
     showResults();
 }
 
+// Validate if image URL is from a legitimate retail/CDN source
+function isValidRetailImageUrl(imageUrl, sourceUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string') {
+        return false;
+    }
+
+    // Must be a valid HTTP/HTTPS URL
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        return false;
+    }
+
+    // Must have a valid image extension or be from known image CDNs
+    const validImageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.avif'];
+    const urlLower = imageUrl.toLowerCase();
+    const hasValidExtension = validImageExtensions.some(ext => urlLower.includes(ext));
+
+    // Known retail domains and CDNs that serve product images
+    const trustedDomains = [
+        // Major retailers
+        'amazon.com', 'amazonaws.com', 'media-amazon.com',
+        'walmart.com', 'walmartimages.com',
+        'target.com', 'scene7.com',
+        'bestbuy.com', 'bestbuy.ca',
+        'ebay.com', 'ebayimg.com',
+        'etsy.com', 'etsystatic.com',
+        'shopify.com', 'shopifycdn.com', 'cdn.shopify.com',
+        'aliexpress.com', 'alicdn.com',
+        'wayfair.com', 'wfcdn.com',
+        'homedepot.com', 'thdstatic.com',
+        'lowes.com', 'lowe.com',
+        'costco.com',
+        'macys.com',
+        'nordstrom.com',
+        'zappos.com',
+        'overstock.com',
+        'chewy.com',
+        'newegg.com',
+        'bhphotovideo.com',
+        // CDNs commonly used by retailers
+        'cloudinary.com', 'cloudfront.net', 'akamaized.net',
+        'fastly.net', 'imgix.net', 'cloudflare.com',
+        // Image hosting
+        'googleusercontent.com', 'gstatic.com',
+        'media.githubusercontent.com',
+        // Regional retailers
+        'johnlewis.com', 'argos.co.uk', 'currys.co.uk',
+        'mediamarkt.', 'saturn.de',
+        'fnac.com', 'darty.com',
+        'elgiganten.', 'elkjop.',
+        // Brand sites
+        'apple.com', 'samsung.com', 'sony.com', 'lg.com',
+        'nike.com', 'adidas.com', 'puma.com',
+    ];
+
+    try {
+        const imageUrlObj = new URL(imageUrl);
+        const imageHost = imageUrlObj.hostname.toLowerCase();
+
+        // Check if image is from a trusted domain
+        const isFromTrustedDomain = trustedDomains.some(domain => imageHost.includes(domain));
+
+        // If we have a source URL, check if image is from the same domain
+        let isFromSameSourceDomain = false;
+        if (sourceUrl) {
+            try {
+                const sourceUrlObj = new URL(sourceUrl);
+                const sourceHost = sourceUrlObj.hostname.toLowerCase().replace('www.', '');
+                const imageHostClean = imageHost.replace('www.', '');
+                // Check if they share the same root domain
+                isFromSameSourceDomain = imageHostClean.includes(sourceHost) ||
+                                         sourceHost.includes(imageHostClean.split('.').slice(-2).join('.'));
+            } catch (e) {
+                // Invalid source URL, ignore
+            }
+        }
+
+        // Accept if from trusted domain, same source domain, or has valid image extension
+        return isFromTrustedDomain || isFromSameSourceDomain || hasValidExtension;
+    } catch (e) {
+        // Invalid URL
+        return false;
+    }
+}
+
 // Create product card HTML
 function createProductCard(product, index) {
     const name = product.name || 'Unknown Product';
@@ -374,7 +458,9 @@ function createProductCard(product, index) {
         confidence: confidence,
     }));
 
-    const imageHtml = imageUrl
+    // Only show image if it's from a valid retail source
+    const hasValidImage = isValidRetailImageUrl(imageUrl, sourceUrl);
+    const imageHtml = hasValidImage
         ? `<img src="${imageUrl}" alt="${escapeHtml(name)}" class="product-image" onerror="this.outerHTML='<div class=\\'product-image placeholder\\' style=\\'background: ${gradientColors}\\'>${getInitials(name)}</div>'">`
         : `<div class="product-image placeholder" style="background: ${gradientColors}">${getInitials(name)}</div>`;
 
@@ -929,7 +1015,7 @@ authModal.addEventListener('click', (e) => {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('PriceHawk initialized');
+    console.log('Retail Right initialized');
     searchInput.focus();
 
     // Check if user is already logged in
