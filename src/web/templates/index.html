@@ -11,7 +11,7 @@
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-            <a href="/" class="logo">
+            <a href="javascript:void(0)" class="logo" onclick="goHome()">
                 <span class="logo-icon">🛍️</span>
                 <span class="logo-text">Retail Right</span>
             </a>
@@ -29,6 +29,35 @@
 
     <div class="app-container">
         <main>
+            <!-- Hero Section -->
+            <section class="hero-section">
+                <div class="hero-content">
+                    <h1 class="hero-title">
+                        <span class="hero-title-line">Find the Best Prices</span>
+                        <span class="hero-title-gradient">Across the Web</span>
+                    </h1>
+                    <p class="hero-subtitle">Compare prices from hundreds of retailers instantly. Search by text, URL, or image.</p>
+                </div>
+                <div class="hero-features">
+                    <div class="hero-feature">
+                        <span class="hero-feature-icon">🔍</span>
+                        <span class="hero-feature-text">Smart Search</span>
+                    </div>
+                    <div class="hero-feature">
+                        <span class="hero-feature-icon">🏷️</span>
+                        <span class="hero-feature-text">Price Comparison</span>
+                    </div>
+                    <div class="hero-feature">
+                        <span class="hero-feature-icon">📸</span>
+                        <span class="hero-feature-text">Image Search</span>
+                    </div>
+                    <div class="hero-feature">
+                        <span class="hero-feature-icon">⚡</span>
+                        <span class="hero-feature-text">Real-time Results</span>
+                    </div>
+                </div>
+            </section>
+
             <!-- Search Module -->
             <section class="search-module" id="search-module">
                 <div class="search-body" id="search-body">
@@ -92,34 +121,16 @@
                 </div>
             </section>
 
-            <!-- Trending Categories -->
-            <section id="trending-section" class="trending-section">
-                <h3 class="section-title">Trending Categories</h3>
-                <div class="carousel-container">
-                    <button class="carousel-btn prev" onclick="scrollCarousel(-1)" id="carousel-prev">‹</button>
-                    <div class="trending-carousel" id="trending-carousel">
-                        <div class="category-card" onclick="searchCategory('Electronics')">
-                            <span class="category-icon">📱</span>
-                            <span class="category-name">Electronics</span>
-                        </div>
-                        <div class="category-card" onclick="searchCategory('Fashion')">
-                            <span class="category-icon">👗</span>
-                            <span class="category-name">Fashion</span>
-                        </div>
-                        <div class="category-card" onclick="searchCategory('Home & Kitchen')">
-                            <span class="category-icon">🏠</span>
-                            <span class="category-name">Home & Kitchen</span>
-                        </div>
-                        <div class="category-card" onclick="searchCategory('Beauty')">
-                            <span class="category-icon">💄</span>
-                            <span class="category-name">Beauty</span>
-                        </div>
-                        <div class="category-card" onclick="searchCategory('Sports & Outdoors')">
-                            <span class="category-icon">⚽</span>
-                            <span class="category-name">Sports & Outdoors</span>
-                        </div>
-                    </div>
-                    <button class="carousel-btn next" onclick="scrollCarousel(1)" id="carousel-next">›</button>
+            <!-- Popular Searches -->
+            <section id="popular-section" class="popular-section">
+                <h3 class="section-title">
+                    <span class="section-title-icon">🔥</span>
+                    Trending Searches
+                </h3>
+                <p class="section-subtitle">Most searched products in the last 7 days</p>
+                <div class="popular-searches" id="popular-searches">
+                    <!-- Populated by JavaScript -->
+                    <div class="popular-loading">Loading trending searches...</div>
                 </div>
             </section>
 
@@ -154,10 +165,15 @@
             <!-- Results Section -->
             <section id="results-section" class="results-section hidden">
                 <div class="results-header">
-                    <h2 class="results-title">
-                        <span class="results-title-icon">📦</span>
-                        Matches Found
-                    </h2>
+                    <div class="results-title-row">
+                        <button class="back-btn" onclick="goHome()" title="Back to Home">
+                            <span class="back-icon">←</span>
+                            <span class="back-text">Home</span>
+                        </button>
+                        <h2 class="results-title">
+                            <span id="results-title-text">Matches Found</span>
+                        </h2>
+                    </div>
                     <div class="results-controls">
                         <span class="results-meta-item" id="result-count">0 results</span>
                         <div class="sort-control">
@@ -177,44 +193,82 @@
                 </div>
             </section>
 
-            <!-- Contribute Section -->
-            <section class="contribute-section">
-                <button class="contribute-toggle" onclick="toggleContributeForm()">
-                    <span>➕</span>
-                    <span>Add a Product</span>
-                </button>
-                <div id="contribute-form" class="contribute-form hidden">
-                    <div class="contribute-header">
-                        <h3 class="contribute-title">Add a Product to the Database</h3>
-                        <p class="contribute-desc">Help improve search results by adding products you know about.</p>
-                    </div>
-                    <form id="product-contribute-form" onsubmit="submitProduct(event)">
-                        <div class="contribute-grid">
-                            <input type="text" id="contrib-name" class="contribute-input" placeholder="Product name *" required>
-                            <input type="text" id="contrib-brand" class="contribute-input" placeholder="Brand">
-                            <input type="number" id="contrib-price" class="contribute-input" placeholder="Price" step="0.01" min="0">
-                            <input type="text" id="contrib-merchant" class="contribute-input" placeholder="Store/Merchant">
-                            <input type="url" id="contrib-url" class="contribute-input" placeholder="Product page URL">
-                            <input type="url" id="contrib-image" class="contribute-input" placeholder="Image URL">
-                            <input type="text" id="contrib-category" class="contribute-input" placeholder="Category">
-                        </div>
-                        <div class="contribute-actions">
-                            <button type="submit" class="contribute-btn">Add Product</button>
-                        </div>
-                    </form>
-                    <div id="contribute-result" class="contribute-result hidden"></div>
-                </div>
-            </section>
         </main>
+
+        <!-- Stats Section -->
+        <section class="stats-section" id="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-number" data-target="50000">50K+</span>
+                    <span class="stat-label">Products Indexed</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" data-target="100">100+</span>
+                    <span class="stat-label">Retailers</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" data-target="95">95%</span>
+                    <span class="stat-label">Match Accuracy</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">&lt;2s</span>
+                    <span class="stat-label">Avg Response Time</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="how-it-works-section">
+            <h2 class="section-heading">How It Works</h2>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">🔎</div>
+                    <h3 class="step-title">Search</h3>
+                    <p class="step-desc">Enter a product name, paste a URL, or upload an image</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">🤖</div>
+                    <h3 class="step-title">AI Analysis</h3>
+                    <p class="step-desc">Our AI agents analyze and match your query across databases</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">💰</div>
+                    <h3 class="step-title">Compare</h3>
+                    <p class="step-desc">See prices from multiple retailers and find the best deal</p>
+                </div>
+            </div>
+        </section>
 
         <!-- Footer -->
         <footer class="footer">
-            <p class="footer-text">Powered by multi-agent AI with LangGraph</p>
-            <div class="footer-links">
-                <a href="/docs" target="_blank" class="footer-link">API Docs</a>
-                <a href="/api/v1/search/metrics" target="_blank" class="footer-link">Metrics</a>
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="footer-logo">🛍️</span>
+                    <span class="footer-name">Retail Right</span>
+                </div>
+                <p class="footer-text">Powered by multi-agent AI with LangGraph</p>
+                <div class="footer-links">
+                    <a href="/docs" target="_blank" class="footer-link">API Docs</a>
+                    <a href="/api/v1/search/metrics" target="_blank" class="footer-link">Metrics</a>
+                    <a href="/health/detailed" target="_blank" class="footer-link">Status</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2026 Retail Right. Built with FastAPI, LangChain & ChromaDB.</p>
             </div>
         </footer>
+    </div>
+
+    <!-- Floating Background Elements -->
+    <div class="floating-elements">
+        <div class="floating-shape shape-1"></div>
+        <div class="floating-shape shape-2"></div>
+        <div class="floating-shape shape-3"></div>
+        <div class="floating-shape shape-4"></div>
+        <div class="floating-shape shape-5"></div>
     </div>
 
     <!-- Auth Modal -->

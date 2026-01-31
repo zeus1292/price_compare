@@ -14,6 +14,7 @@ let loadingTimer = null;
 let currentUser = null;
 let lastSearchResults = [];
 let currentSortBy = 'relevance';
+let isSearchMode = false;
 
 // Search context for feedback
 let lastSearchContext = {
@@ -69,8 +70,8 @@ const authSwitchBtn = document.getElementById('auth-switch-btn');
 const recentSearchesSection = document.getElementById('recent-searches-section');
 const recentSearchesList = document.getElementById('recent-searches-list');
 
-// Trending Carousel DOM Elements
-const trendingCarousel = document.getElementById('trending-carousel');
+// Popular Searches DOM Elements
+const popularSearches = document.getElementById('popular-searches');
 
 // Auth mode: 'login' or 'signup'
 let authMode = 'login';
@@ -212,10 +213,18 @@ searchForm.addEventListener('submit', async (e) => {
 
 // Main search function (text or URL)
 async function performSearch(query, inputType) {
+    // Update current query state
+    currentQuery = query;
+    detectedInputType = inputType;
+
+    // Clear previous results state
+    lastSearchResults = [];
+    clearResultsHeader();
+
+    enterSearchMode();
     showLoading();
     hideError();
     hideResults();
-    hideTrendingSection();
 
     try {
         const response = await fetch(`${API_BASE}/search`, {
@@ -255,11 +264,18 @@ async function performSearch(query, inputType) {
 
 // Image search function
 async function performImageSearch(file) {
+    // Update current query state
+    currentQuery = `Image: ${file.name}`;
+    detectedInputType = 'image';
+
+    // Clear previous results state
+    lastSearchResults = [];
+    clearResultsHeader();
+
+    enterSearchMode();
     showLoading();
     hideError();
     hideResults();
-    hideTrendingSection();
-    currentQuery = `Image: ${file.name}`;
 
     try {
         const formData = new FormData();
@@ -339,13 +355,38 @@ function displayResults(data) {
         traceId: data.trace_id || null,
     };
 
-    // Update counts
-    resultCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
+    // Get display query
+    const displayQuery = props.name || currentQuery;
+    const truncatedQuery = displayQuery.length > 50
+        ? displayQuery.substring(0, 50) + '...'
+        : displayQuery;
 
-    // Display results grid
-    resultsGrid.innerHTML = results.map((product, index) => createProductCard(product, index)).join('');
+    // Display results grid or show error
+    if (results.length > 0) {
+        // Update results title
+        const titleText = document.getElementById('results-title-text');
+        if (titleText) {
+            titleText.textContent = `Results for "${truncatedQuery}"`;
+        }
 
-    showResults();
+        // Update counts
+        resultCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
+
+        resultsGrid.innerHTML = results.map((product, index) => createProductCard(product, index)).join('');
+        showResults();
+    } else {
+        // No results - go back home and show error message
+        goHome();
+        showError(`No products found for "${truncatedQuery}". Try enabling live web search or use a different search term.`);
+    }
+}
+
+// Clear results header (reset title)
+function clearResultsHeader() {
+    const titleText = document.getElementById('results-title-text');
+    if (titleText) {
+        titleText.textContent = 'Searching...';
+    }
 }
 
 // Validate if image URL is from a legitimate retail/CDN source
@@ -768,35 +809,56 @@ window.executeRecentSearch = executeRecentSearch;
 window.clearSearchHistory = clearSearchHistory;
 
 // ========================================
-// TRENDING CATEGORIES
+// POPULAR SEARCHES
 // ========================================
 
-function searchCategory(category) {
-    searchInput.value = category;
-    performSearch(category, 'text');
-}
+async function loadPopularSearches() {
+    const container = document.getElementById('popular-searches');
+    if (!container) return;
 
-function scrollCarousel(direction) {
-    const scrollAmount = 160; // Card width + gap
-    trendingCarousel.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
-}
+    try {
+        const response = await fetch(`${API_BASE}/search/popular?days=7&limit=5`);
+        if (!response.ok) throw new Error('Failed to load popular searches');
 
-function hideTrendingSection() {
-    const trendingSection = document.getElementById('trending-section');
-    if (trendingSection) {
-        trendingSection.classList.add('hidden');
+        const data = await response.json();
+        const searches = data.searches || [];
+
+        if (searches.length > 0) {
+            container.innerHTML = searches.map((item, index) => `
+                <div class="popular-item" onclick="searchPopular('${escapeHtml(item.query)}')">
+                    <span class="popular-rank">${index + 1}</span>
+                    <div class="popular-content">
+                        <span class="popular-query">${escapeHtml(item.query)}</span>
+                        ${item.search_count > 0 ? `<span class="popular-count">${item.search_count} searches</span>` : ''}
+                    </div>
+                    <span class="popular-arrow">→</span>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = `
+                <div class="popular-empty">
+                    <span class="popular-empty-icon">🔍</span>
+                    <p>No searches yet. Be the first to search!</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Failed to load popular searches:', error);
+        container.innerHTML = `
+            <div class="popular-empty">
+                <span class="popular-empty-icon">✨</span>
+                <p>Start searching to see trending products!</p>
+            </div>
+        `;
     }
 }
 
-function showTrendingSection() {
-    const trendingSection = document.getElementById('trending-section');
-    if (trendingSection) {
-        trendingSection.classList.remove('hidden');
-    }
+function searchPopular(query) {
+    searchInput.value = query;
+    performSearch(query, 'text');
 }
 
-window.searchCategory = searchCategory;
-window.scrollCarousel = scrollCarousel;
+window.searchPopular = searchPopular;
 
 // ========================================
 // UTILITY FUNCTIONS
@@ -877,6 +939,94 @@ function updateLoadingStep(step) {
         setTimeout(() => updateLoadingStep(step + 1), 1200);
     }
 }
+
+// ========================================
+// SEARCH MODE (Collapsed View)
+// ========================================
+
+function enterSearchMode() {
+    if (isSearchMode) return;
+    isSearchMode = true;
+
+    document.body.classList.add('search-mode');
+
+    // Hide homepage sections with animation
+    const homeSections = [
+        document.querySelector('.hero-section'),
+        document.querySelector('.stats-section'),
+        document.querySelector('.how-it-works-section'),
+        document.getElementById('popular-section'),
+        document.getElementById('recent-searches-section'),
+    ];
+
+    homeSections.forEach(section => {
+        if (section) {
+            section.classList.add('hidden-in-search');
+        }
+    });
+
+    // Collapse search module
+    const searchModule = document.getElementById('search-module');
+    if (searchModule) {
+        searchModule.classList.add('collapsed');
+    }
+}
+
+function exitSearchMode() {
+    if (!isSearchMode) return;
+    isSearchMode = false;
+
+    document.body.classList.remove('search-mode');
+
+    // Show homepage sections
+    const homeSections = [
+        document.querySelector('.hero-section'),
+        document.querySelector('.stats-section'),
+        document.querySelector('.how-it-works-section'),
+        document.getElementById('popular-section'),
+    ];
+
+    homeSections.forEach(section => {
+        if (section) {
+            section.classList.remove('hidden-in-search');
+        }
+    });
+
+    // Show recent searches only if logged in
+    if (currentUser) {
+        const recentSection = document.getElementById('recent-searches-section');
+        if (recentSection) {
+            recentSection.classList.remove('hidden-in-search');
+            loadRecentSearches();
+        }
+    }
+
+    // Expand search module
+    const searchModule = document.getElementById('search-module');
+    if (searchModule) {
+        searchModule.classList.remove('collapsed');
+    }
+
+    // Hide results
+    hideResults();
+    hideError();
+
+    // Clear search input
+    searchInput.value = '';
+    clearSelectedImage();
+
+    // Reload popular searches (might have changed)
+    loadPopularSearches();
+
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goHome() {
+    exitSearchMode();
+}
+
+window.goHome = goHome;
 
 // ========================================
 // SHOW/HIDE SECTIONS
@@ -968,12 +1118,14 @@ document.addEventListener('keydown', (e) => {
         searchInput.focus();
     }
 
-    // Press 'Escape' to clear image or close modal
+    // Press 'Escape' to clear image, close modal, or go home
     if (e.key === 'Escape') {
         if (!authModal.classList.contains('hidden')) {
             hideAuthModal();
         } else if (selectedImageFile) {
             clearSelectedImage();
+        } else if (isSearchMode) {
+            goHome();
         }
     }
 });
@@ -1020,4 +1172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Check if user is already logged in
     checkAuthStatus();
+
+    // Load popular searches
+    loadPopularSearches();
 });

@@ -66,8 +66,8 @@ class Settings(BaseSettings):
 
     # API Configuration
     api_host: str = Field(default="0.0.0.0")
-    api_port: int = Field(default=8000)
-    cors_origins: List[str] = Field(default=["http://localhost:3000", "http://127.0.0.1:3000"])
+    api_port: int = Field(default=8000, validation_alias="PORT")
+    cors_origins: List[str] = Field(default=["*"])  # Allow all origins for cloud deployment
 
     # Security Configuration
     encryption_key: SecretStr = Field(

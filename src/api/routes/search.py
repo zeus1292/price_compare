@@ -366,3 +366,36 @@ async def debug_llm():
         results["errors"].append(f"Extraction test failed: {str(e)}")
 
     return results
+
+
+@router.get("/search/popular")
+async def get_popular_searches(days: int = 7, limit: int = 5):
+    """
+    Get most popular searches in the last N days.
+
+    Returns trending search queries based on actual user searches.
+    """
+    try:
+        db = SQLiteManager()
+        db.initialize()
+
+        popular = await db.get_popular_searches(days=days, limit=limit)
+
+        # If no searches yet, return some defaults
+        if not popular:
+            popular = [
+                {"query": "iPhone 15 Pro", "search_count": 0, "last_searched": None},
+                {"query": "Nike Air Max", "search_count": 0, "last_searched": None},
+                {"query": "Sony WH-1000XM5", "search_count": 0, "last_searched": None},
+                {"query": "Samsung TV", "search_count": 0, "last_searched": None},
+                {"query": "Instant Pot", "search_count": 0, "last_searched": None},
+            ]
+
+        return {
+            "searches": popular,
+            "period_days": days,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get popular searches: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

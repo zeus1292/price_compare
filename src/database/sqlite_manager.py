@@ -647,6 +647,48 @@ class SQLiteManager:
             await session.commit()
             return count
 
+    async def get_popular_searches(
+        self,
+        days: int = 7,
+        limit: int = 5
+    ) -> List[dict]:
+        """
+        Get most popular searches in the last N days.
+
+        Returns list of dicts with query, search_count, and last_searched.
+        """
+        async with self.async_session() as session:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+            # Query to get popular searches grouped by query
+            result = await session.execute(
+                select(
+                    SearchHistory.query,
+                    func.count(SearchHistory.id).label('search_count'),
+                    func.max(SearchHistory.created_at).label('last_searched')
+                )
+                .where(
+                    and_(
+                        SearchHistory.created_at >= cutoff_date,
+                        SearchHistory.query_type == 'text',  # Only text searches
+                        ~SearchHistory.query.like('[Image%'),  # Exclude image searches
+                    )
+                )
+                .group_by(func.lower(SearchHistory.query))
+                .order_by(func.count(SearchHistory.id).desc())
+                .limit(limit)
+            )
+
+            rows = result.all()
+            return [
+                {
+                    'query': row.query,
+                    'search_count': row.search_count,
+                    'last_searched': row.last_searched.isoformat() if row.last_searched else None,
+                }
+                for row in rows
+            ]
+
     def close(self) -> None:
         """Close database connections."""
         self.sync_engine.dispose()

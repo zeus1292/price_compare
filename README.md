@@ -16,6 +16,7 @@ A multi-agent product matching tool that allows users to search for products via
 - **Sort Results**: Sort by Relevance, Price Low to High, or Price High to Low
 - **User Feedback System**: Thumbs up/down ratings on results for quality tracking
 - **Precision/Recall Metrics**: Built-in search quality analytics and reporting
+- **Trending Searches**: Shows top 5 most searched products from the last 7 days
 - **Real-time Observability**: Full tracing with LangSmith for debugging and optimization
 - **Apple-Inspired UI Design**: Clean, minimalist interface with SF Pro typography, frosted glass header, and pastel accent colors
 - **Pastel Color Theme**: Soft color palette (pink, lavender, mint, peach, sky blue) for category cards and UI accents
@@ -167,6 +168,7 @@ Price_Compare/
 | `/api/v1/search/stats` | GET | Database & cache statistics |
 | `/api/v1/search/metrics` | GET | Precision/recall metrics |
 | `/api/v1/search/debug` | GET | Debug LLM connectivity |
+| `/api/v1/search/popular` | GET | Get top 5 most searched products (last 7 days) |
 
 ### Products
 
@@ -203,15 +205,15 @@ The search input automatically detects:
 - **URL**: Paste any product page URL (detected via regex)
 - **Image**: Drag & drop, paste from clipboard, or click to upload
 
-### Trending Categories
-The landing page displays a carousel of 5 trending categories:
-- Electronics
-- Fashion
-- Home & Kitchen
-- Beauty
-- Sports & Outdoors
+### Trending Searches
+The landing page displays the top 5 most searched products from the last 7 days:
 
-Click any category to search for products in that category.
+- Shows actual search queries from users
+- Displays search count for each query
+- Click any trending search to instantly search for that product
+- Updates dynamically as users search
+
+If no searches exist yet, default popular products are shown as suggestions.
 
 ### Recent Searches (Logged-in Users)
 When logged in, users see their last 5 searches below the search bar:
@@ -411,11 +413,23 @@ Category cards and UI accents use a soft pastel palette:
 
 ### Key UI Components
 
+- **Hero Section**: Animated gradient title with feature badges
 - **Category Cards**: Left-colored border accent with pastel hover background
 - **Product Cards**: Clean white cards with confidence badges and merchant pills
 - **Search Module**: Rounded input with focus ring effect
+- **Stats Section**: Animated counters with colored top borders
+- **How It Works**: Step-by-step cards with numbered badges
 - **Auth Modal**: Centered modal with backdrop blur
 - **Results Grid**: Responsive grid with hover lift animations
+- **Floating Elements**: Pastel gradient blobs for visual depth
+
+### Animations
+
+- `fadeInUp`: Elements slide up and fade in on load
+- `bounceIn`: Feature badges bounce into view
+- `gradientShift`: Hero title gradient animates continuously
+- `float1-5`: Background shapes float gently
+- Hover effects: Cards lift with shadow on hover
 
 ## Performance Optimizations
 
@@ -425,6 +439,77 @@ Category cards and UI accents use a soft pastel palette:
 4. **Parallel LLM Calls**: Concurrent result parsing with asyncio.gather()
 5. **Confidence Filtering**: Early filtering reduces processing
 6. **Client-side Sorting**: Re-sort results without API calls
+
+## Deployment & Hosting
+
+### Free/Low-Cost Hosting Options
+
+| Platform | Free Tier | Best For | Limitations |
+|----------|-----------|----------|-------------|
+| **Railway** | $5/month credit | Full-stack apps | Credit expires monthly |
+| **Render** | 750 hours/month | Web services | Sleeps after 15 min inactivity |
+| **Fly.io** | 3 shared VMs | Global deployment | 256MB RAM on free tier |
+| **PythonAnywhere** | 1 web app | Python apps | Limited CPU, no background tasks |
+| **Vercel** | Unlimited | Serverless | Cold starts, 10s timeout |
+| **Google Cloud Run** | 2M requests/month | Containers | Cold starts |
+
+### Recommended: Railway or Render
+
+**Railway** (Recommended for this app):
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and deploy
+railway login
+railway init
+railway up
+```
+
+**Render**:
+1. Push code to GitHub
+2. Connect repo at render.com
+3. Select "Web Service"
+4. Set build command: `pip install -r requirements.txt`
+5. Set start command: `python -m src.api.main`
+
+### Environment Variables for Production
+
+Set these in your hosting platform:
+```
+OPENAI_API_KEY=sk-...
+TAVILY_API_KEY=tvly-...
+ANTHROPIC_API_KEY=sk-ant-...  # Optional
+LANGSMITH_API_KEY=...         # Optional
+```
+
+### Database Considerations
+
+For production, consider:
+- **SQLite**: Works on Railway/Render with persistent volumes
+- **PostgreSQL**: Free tier on Supabase, Neon, or Railway
+- **ChromaDB**: Can be self-hosted or use managed Chroma Cloud
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+CMD ["python", "-m", "src.api.main"]
+```
+
+Build and run:
+```bash
+docker build -t retail-right .
+docker run -p 8000:8000 --env-file .env retail-right
+```
 
 ## License
 

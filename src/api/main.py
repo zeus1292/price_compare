@@ -210,12 +210,17 @@ def get_sqlite_manager() -> SQLiteManager:
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
 
     settings = get_settings()
+
+    # Use PORT env var if set (for cloud platforms like Render, Railway)
+    port = int(os.environ.get("PORT", settings.api_port))
+
     uvicorn.run(
         "src.api.main:app",
         host=settings.api_host,
-        port=settings.api_port,
-        reload=True,
+        port=port,
+        reload=os.environ.get("ENV", "development") == "development",
     )
