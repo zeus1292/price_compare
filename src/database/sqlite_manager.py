@@ -671,10 +671,10 @@ class SQLiteManager:
                     and_(
                         SearchHistory.created_at >= cutoff_date,
                         SearchHistory.query_type == 'text',  # Only text searches
-                        ~SearchHistory.query.like('[Image%'),  # Exclude image searches
+                        SearchHistory.query.notlike('[Image%'),  # Exclude image searches
                     )
                 )
-                .group_by(func.lower(SearchHistory.query))
+                .group_by(SearchHistory.query)
                 .order_by(func.count(SearchHistory.id).desc())
                 .limit(limit)
             )
