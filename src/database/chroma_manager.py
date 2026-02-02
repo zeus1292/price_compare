@@ -209,26 +209,50 @@ class ChromaManager:
 
         query_params = {
             "query_embeddings": [query_embedding],
-            "n_results": limit,
+            "n_results": limit if not filter_ids else limit * 3,  # Over-fetch if filtering
             "include": ["documents", "metadatas", "distances"],
         }
 
-        if filter_ids:
-            query_params["where"] = {"$and": [{"id": {"$in": filter_ids}}]}
-            if where:
-                query_params["where"]["$and"].append(where)
-        elif where:
+        if where:
             query_params["where"] = where
 
         results = collection.query(**query_params)
 
         # Flatten results (ChromaDB returns nested lists)
-        return {
+        flattened = {
             "ids": results["ids"][0] if results["ids"] else [],
             "distances": results["distances"][0] if results["distances"] else [],
             "documents": results["documents"][0] if results["documents"] else [],
             "metadatas": results["metadatas"][0] if results["metadatas"] else [],
         }
+
+        # Post-filter by IDs if specified (ChromaDB where doesn't support ID filtering)
+        if filter_ids:
+            filter_set = set(filter_ids)
+            filtered_results = {
+                "ids": [],
+                "distances": [],
+                "documents": [],
+                "metadatas": [],
+            }
+            for i, doc_id in enumerate(flattened["ids"]):
+                if doc_id in filter_set:
+                    filtered_results["ids"].append(doc_id)
+                    filtered_results["distances"].append(flattened["distances"][i])
+                    filtered_results["documents"].append(
+                        flattened["documents"][i] if flattened["documents"] else None
+                    )
+                    filtered_results["metadatas"].append(
+                        flattened["metadatas"][i] if flattened["metadatas"] else None
+                    )
+            return {
+                "ids": filtered_results["ids"][:limit],
+                "distances": filtered_results["distances"][:limit],
+                "documents": filtered_results["documents"][:limit],
+                "metadatas": filtered_results["metadatas"][:limit],
+            }
+
+        return flattened
 
     def query_names(
         self,

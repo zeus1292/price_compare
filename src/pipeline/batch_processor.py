@@ -149,7 +149,7 @@ class BatchProcessor:
         """
         Discover all product directories in dataset.
 
-        Looks for directories containing .mhtml or .wtl files.
+        Looks for directories containing .mhtml, .wtl, or elements_metadata.json files.
         """
         product_dirs = []
 
@@ -159,8 +159,10 @@ class BatchProcessor:
                 has_mhtml = list(path.glob("*.mhtml")) or list(path.glob("*.mht"))
                 has_wtl = list(path.glob("*.wtl"))
                 has_metadata = (path / "metadata.json").exists()
+                # Klarna WTL dataset format
+                has_elements_metadata = (path / "elements_metadata.json").exists()
 
-                if has_mhtml or has_wtl or has_metadata:
+                if has_mhtml or has_wtl or has_metadata or has_elements_metadata:
                     product_dirs.append(path)
 
         return product_dirs
@@ -275,11 +277,13 @@ class BatchProcessor:
             product.setdefault("name_normalized", product.get("name", "").lower().strip())
             products_to_insert.append(product)
 
-        # Insert into SQLite
-        count = await self.sqlite.bulk_create_products(products_to_insert)
-        logger.debug(f"Inserted {count} products into SQLite")
+        # Insert into SQLite and get back products with generated IDs
+        created_products = await self.sqlite.bulk_create_products(
+            products_to_insert, return_products=True
+        )
+        logger.debug(f"Inserted {len(created_products)} products into SQLite")
 
-        # Insert embeddings into ChromaDB
+        # Insert embeddings into ChromaDB using actual product IDs
         valid_embeddings = [
             (i, emb)
             for i, emb in enumerate(embeddings)
@@ -293,14 +297,14 @@ class BatchProcessor:
             metadatas = []
 
             for i, emb in valid_embeddings:
-                product = products_to_insert[i]
-                product_ids.append(str(product.get("id", i)))
-                names.append(product.get("name", ""))
+                product = created_products[i]
+                product_ids.append(str(product.id))  # Use actual UUID from database
+                names.append(product.name or "")
                 embedding_vectors.append(emb["name_embedding"])
                 metadatas.append({
-                    "merchant": product.get("merchant") or "",
-                    "market": product.get("market") or "",
-                    "price": product.get("price") or 0.0,
+                    "merchant": product.merchant or "",
+                    "market": product.market or "",
+                    "price": product.price or 0.0,
                 })
 
             self.chroma.add_product_embeddings_batch(

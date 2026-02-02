@@ -166,17 +166,10 @@ class Orchestrator:
         """
         Decide whether to trigger live search.
 
-        Triggers if:
-        - Live search is enabled
-        - Match confidence is below threshold
-        - No database matches found
+        Always triggers live search when enabled to supplement database results.
+        Database results will still be included regardless of live search.
         """
         enable_live_search = state.get("enable_live_search", True)
-        confidence_threshold = state.get(
-            "confidence_threshold", self.default_confidence_threshold
-        )
-        match_confidence = state.get("match_confidence", 0.0)
-        has_matches = len(state.get("database_matches", [])) > 0
 
         if not enable_live_search:
             logger.info("Live search disabled")
@@ -186,16 +179,10 @@ class Orchestrator:
             logger.info("Live search not available (no API key)")
             return "synthesis"
 
-        if match_confidence >= confidence_threshold and has_matches:
-            logger.info(
-                f"Database match confidence {match_confidence:.2f} >= "
-                f"threshold {confidence_threshold:.2f}, skipping live search"
-            )
-            return "synthesis"
-
+        # Always run live search to supplement database results
+        db_matches = len(state.get("database_matches", []))
         logger.info(
-            f"Database match confidence {match_confidence:.2f} < "
-            f"threshold {confidence_threshold:.2f}, triggering live search"
+            f"Triggering live search to supplement {db_matches} database matches"
         )
         return "live_search"
 
@@ -252,53 +239,49 @@ class Orchestrator:
         limit: int = 10,
     ) -> List[dict]:
         """
-        Combine database and live search results, filtering by confidence.
+        Combine database and live search results without strict filtering.
 
         Args:
             database_matches: Results from database search
             live_results: Results from live web search
-            confidence_threshold: Minimum confidence to include in results
+            confidence_threshold: Not used for filtering (kept for API compatibility)
             limit: Maximum number of results to return
 
         Returns:
-            Combined and filtered results sorted by confidence
+            Combined results sorted by confidence, deduplicated by URL
         """
         combined = []
         seen_urls = set()
 
-        # Add all database matches that meet threshold
+        # Add ALL database matches (from local Klarna data)
         for match in database_matches:
-            confidence = match.get("match_confidence", 0)
-            if confidence >= confidence_threshold:
-                url = match.get("source_url")
-                if url:
-                    if url not in seen_urls:
-                        seen_urls.add(url)
-                        combined.append(match)
-                else:
-                    # No URL - add based on product_id dedup
-                    combined.append(match)
-
-        # Add live search results that meet threshold
-        for result in live_results:
-            confidence = result.get("match_confidence", 0)
-            if confidence >= confidence_threshold:
-                url = result.get("source_url")
-                if url and url not in seen_urls:
+            url = match.get("source_url")
+            if url:
+                if url not in seen_urls:
                     seen_urls.add(url)
-                    combined.append(result)
+                    combined.append(match)
+            else:
+                # No URL - add anyway (dedup by product_id not possible here)
+                combined.append(match)
 
-        # Sort by confidence (highest first)
+        # Add live search results (supplementary)
+        for result in live_results:
+            url = result.get("source_url")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                combined.append(result)
+
+        # Sort by confidence (highest first) but don't filter
         combined.sort(
             key=lambda x: x.get("match_confidence", 0),
             reverse=True,
         )
 
-        # Log filtering stats
-        total_before = len(database_matches) + len(live_results)
+        # Log combining stats
         logger.info(
-            f"Result filtering: {total_before} total -> {len(combined)} above "
-            f"{confidence_threshold:.0%} threshold -> returning top {min(len(combined), limit)}"
+            f"Combined results: {len(database_matches)} database + "
+            f"{len(live_results)} live = {len(combined)} unique -> "
+            f"returning top {min(len(combined), limit)}"
         )
 
         return combined[:limit]

@@ -99,7 +99,19 @@ class KlarnaParser:
         wtl_files = list(dir_path.glob("*.wtl"))
         json_files = list(dir_path.glob("metadata.json"))
 
-        # Try metadata.json first (if available)
+        # Klarna WTL dataset format
+        elements_metadata = dir_path / "elements_metadata.json"
+        page_metadata = dir_path / "page_metadata.json"
+
+        # Try page_metadata.json first for URL and location info (Klarna WTL format)
+        if page_metadata.exists():
+            self._parse_page_metadata(page_metadata, product)
+
+        # Try elements_metadata.json (Klarna WTL format)
+        if elements_metadata.exists() and not product.name:
+            self._parse_elements_metadata(elements_metadata, product)
+
+        # Try metadata.json (if available)
         if json_files:
             self._parse_metadata_json(json_files[0], product)
 
@@ -375,6 +387,90 @@ class KlarnaParser:
 
         except Exception as e:
             product.errors.append(f"Metadata JSON error: {str(e)}")
+
+    def _parse_page_metadata(
+        self,
+        file_path: Path,
+        product: ParsedProduct
+    ) -> None:
+        """Parse Klarna WTL page_metadata.json file."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Extract URL from ip_location nested object
+            ip_location = data.get("ip_location", {})
+            if ip_location.get("url"):
+                product.source_url = ip_location["url"]
+            if ip_location.get("hostname"):
+                product.merchant = ip_location["hostname"]
+            if ip_location.get("country"):
+                product.market = ip_location["country"]
+
+            # Currency from location
+            if ip_location.get("currency") and not product.currency:
+                product.currency = ip_location["currency"]
+
+        except Exception as e:
+            product.errors.append(f"Page metadata error: {str(e)}")
+
+    def _parse_elements_metadata(
+        self,
+        file_path: Path,
+        product: ParsedProduct
+    ) -> None:
+        """Parse Klarna WTL elements_metadata.json file.
+
+        This file contains a flat list of DOM elements with attributes
+        including klarna-ai-label for labeled elements.
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if not isinstance(data, list):
+                product.errors.append("elements_metadata.json is not a list")
+                return
+
+            for element in data:
+                if not isinstance(element, dict):
+                    continue
+
+                attrs = element.get("attributes", {})
+                label = attrs.get("klarna-ai-label")
+
+                if not label:
+                    continue
+
+                if label == "Name" and not product.name:
+                    # Get text content - try 'text' first, then 'text_local'
+                    text = element.get("text", "").strip()
+                    if not text:
+                        text = element.get("text_local", "").strip()
+                    if text:
+                        # Clean up multiline text (take first meaningful line)
+                        lines = [l.strip() for l in text.split("\n") if l.strip()]
+                        if lines:
+                            product.name = lines[0]
+
+                elif label == "Price" and product.price is None:
+                    text = element.get("text", "").strip()
+                    if not text:
+                        text = element.get("text_local", "").strip()
+                    if text:
+                        product.raw_price = text
+                        parsed = self._parse_price(text)
+                        if parsed:
+                            product.price, product.currency = parsed
+
+                elif label == "Main picture" and not product.image_url:
+                    # Try to get src from attributes
+                    url = attrs.get("src") or attrs.get("data-src")
+                    if url and url.startswith("http"):
+                        product.image_url = url
+
+        except Exception as e:
+            product.errors.append(f"Elements metadata error: {str(e)}")
 
     def _parse_price(self, price_text: str) -> Optional[Tuple[float, str]]:
         """

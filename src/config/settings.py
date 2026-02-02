@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # Search Configuration
     default_search_limit: int = Field(default=10)
-    confidence_threshold: float = Field(default=0.9)
+    confidence_threshold: float = Field(default=0.5)
     enable_live_search: bool = Field(default=True)
 
     # API Configuration

@@ -124,6 +124,11 @@ data/klarna/
 *.sqlite
 chroma/
 
+# Large datasets
+klarna_product_page_dataset_WTL_50k/
+klarna_product_page_dataset_WTL_50k.tar.gz
+*.tar.gz
+
 # Secrets (redundant but explicit)
 .env
 .env.local

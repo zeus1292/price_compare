@@ -5,7 +5,7 @@ Handles CRUD operations and search queries.
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, case, create_engine, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -145,8 +145,19 @@ class SQLiteManager:
                 return True
             return False
 
-    async def bulk_create_products(self, products_data: List[dict]) -> int:
-        """Bulk create products for batch ingestion."""
+    async def bulk_create_products(
+        self, products_data: List[dict], return_products: bool = False
+    ) -> Union[List[Product], int]:
+        """Bulk create products for batch ingestion.
+
+        Args:
+            products_data: List of product dictionaries
+            return_products: If True, returns list of created Product objects with IDs
+
+        Returns:
+            If return_products is True, returns List[Product] with generated IDs
+            Otherwise returns count of inserted products
+        """
         async with self.async_session() as session:
             products = []
             for data in products_data:
@@ -155,6 +166,13 @@ class SQLiteManager:
                 products.append(Product(**data))
             session.add_all(products)
             await session.commit()
+
+            if return_products:
+                # Refresh to get the auto-generated IDs
+                for product in products:
+                    await session.refresh(product)
+                return products
+
             return len(products)
 
     # Search Operations

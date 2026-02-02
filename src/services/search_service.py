@@ -128,8 +128,8 @@ class ConfidenceScorer:
     def _attribute_match(self, query: dict, candidate: dict) -> float:
         """Calculate attribute match score."""
         # Match on category
-        query_category = query.get("category", "").lower()
-        candidate_category = candidate.get("category", "").lower()
+        query_category = (query.get("category") or "").lower()
+        candidate_category = (candidate.get("category") or "").lower()
 
         if query_category and candidate_category:
             if query_category == candidate_category:
