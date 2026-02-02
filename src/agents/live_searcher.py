@@ -172,11 +172,12 @@ class LiveSearcherAgent(BaseAgent):
             search_query = self._build_search_query(properties)
             logger.info(f"Live search query: {search_query} (fast_mode={fast_mode})")
 
-            # Execute Tavily search (basic depth for speed)
+            # Execute Tavily search
+            # Use advanced depth for better product page results
             search_depth = "basic" if fast_mode else "advanced"
             tavily_results = await self._tavily_search(
                 search_query,
-                max_results=8,  # Fewer results for speed
+                max_results=15,  # More results since we filter out category pages
                 search_depth=search_depth,
             )
 
@@ -231,14 +232,65 @@ class LiveSearcherAgent(BaseAgent):
         if brand and brand.lower() not in name.lower():
             parts.insert(0, brand)
 
-        # Add category for context
-        if properties.get("category"):
-            parts.append(properties["category"])
-
-        # Add "buy" or "price" to get shopping results
-        parts.append("buy price")
+        # Add "buy" to get shopping/product results (not reviews/news)
+        parts.append("buy")
 
         return " ".join(parts)
+
+    def _is_product_page(self, url: str) -> bool:
+        """
+        Check if URL is likely a product page vs category/search page.
+        """
+        url_lower = url.lower()
+
+        # Patterns indicating category/search pages (NOT product pages)
+        category_patterns = [
+            "/browse/",
+            "/search",
+            "/searchpage",
+            "/category/",
+            "/categories/",
+            "/shop/",
+            "/c/",
+            "/s?k=",  # Amazon search
+            "/b/",  # eBay browse
+            "/bn_",  # eBay browse node
+            "?q=",
+            "?query=",
+            "?search=",
+            "/collection/",
+            "/collections/",
+            "/stores/",  # Amazon store pages
+            "/page/",  # Amazon brand pages
+            "/pcmcat",  # Best Buy category pages
+            "/site/searchpage",
+        ]
+
+        for pattern in category_patterns:
+            if pattern in url_lower:
+                return False
+
+        # Patterns indicating product pages
+        product_patterns = [
+            "/dp/",  # Amazon product
+            "/ip/",  # Walmart product
+            "/p/",   # Various retailers product
+            "/product/",
+            "/products/",
+            "/item/",
+            "/itm/",  # eBay item
+            "/pd/",  # Best Buy product detail
+            "/sku/",
+            "/gp/product/",  # Amazon alternate
+        ]
+
+        for pattern in product_patterns:
+            if pattern in url_lower:
+                return True
+
+        # Default: reject if no product pattern matched
+        # This is more conservative but gives better quality results
+        return False
 
     @traceable(name="tavily_search")
     async def _tavily_search(
@@ -311,6 +363,7 @@ class LiveSearcherAgent(BaseAgent):
         """
         Fast parsing using heuristics instead of LLM.
         Extracts product info from title, URL, and content using regex.
+        Filters out category/search pages to only return actual product pages.
         """
         parsed = []
         query_name = query_properties.get("name", "").lower()
@@ -324,17 +377,31 @@ class LiveSearcherAgent(BaseAgent):
             if not title:
                 continue
 
-            # Extract price using regex
-            price = self._extract_price_fast(title + " " + content)
+            # Skip category/search pages - only keep actual product pages
+            if not self._is_product_page(url):
+                logger.debug(f"Skipping non-product URL: {url}")
+                continue
+
+            # Extract price using regex - try content first (more specific)
+            price = self._extract_price_fast(content)
+            if price is None:
+                price = self._extract_price_fast(title)
 
             # Extract merchant from URL
             merchant = self._extract_merchant_from_url(url)
 
+            # Clean up title - remove store name suffixes
+            clean_title = self._clean_product_title(title, merchant)
+
             # Calculate match confidence based on title similarity
-            confidence = self._calculate_similarity(query_name, title.lower())
+            confidence = self._calculate_similarity(query_name, clean_title.lower())
+
+            # Boost confidence if we found a price (indicates real product page)
+            if price is not None:
+                confidence = min(1.0, confidence + 0.1)
 
             parsed.append({
-                "name": title,
+                "name": clean_title,
                 "price": price,
                 "currency": "USD",
                 "merchant": merchant,
@@ -346,25 +413,59 @@ class LiveSearcherAgent(BaseAgent):
 
         return parsed
 
+    def _clean_product_title(self, title: str, merchant: str) -> str:
+        """
+        Clean product title by removing store name suffixes.
+        """
+        # Common patterns to remove
+        patterns_to_remove = [
+            r"\s*[-|]\s*(Amazon|Walmart|Best Buy|Target|eBay|Newegg).*$",
+            r"\s*:\s*(Amazon|Walmart|Best Buy|Target|eBay|Newegg).*$",
+            r"\s*-\s*[A-Za-z]+\.com$",
+            r"\s*\|\s*[A-Za-z]+\.com$",
+        ]
+
+        cleaned = title
+        for pattern in patterns_to_remove:
+            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+
+        return cleaned.strip()
+
     def _extract_price_fast(self, text: str) -> Optional[float]:
         """
         Extract price from text using regex.
+        Returns the first reasonable price found.
         """
+        if not text:
+            return None
+
         # Match patterns like $99.99, $1,234.56, USD 99.99
         patterns = [
-            r'\$([0-9,]+\.?\d*)',
-            r'USD\s*([0-9,]+\.?\d*)',
-            r'Price:\s*\$?([0-9,]+\.?\d*)',
+            r'\$\s*([0-9,]+\.?\d{0,2})',  # $99.99 or $ 99.99
+            r'USD\s*([0-9,]+\.?\d{0,2})',  # USD 99.99
+            r'Price[:\s]+\$?\s*([0-9,]+\.?\d{0,2})',  # Price: $99.99
+            r'Now\s*\$\s*([0-9,]+\.?\d{0,2})',  # Now $99.99
+            r'Sale\s*\$\s*([0-9,]+\.?\d{0,2})',  # Sale $99.99
+            r'(?:^|\s)\$([0-9,]+\.?\d{0,2})(?:\s|$)',  # Standalone $99.99
         ]
 
+        prices_found = []
         for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
                 try:
-                    price_str = match.group(1).replace(',', '')
-                    return float(price_str)
+                    price_str = match.replace(',', '').strip()
+                    if price_str:
+                        price = float(price_str)
+                        # Sanity check: reasonable product price range
+                        if 1.0 <= price <= 50000.0:
+                            prices_found.append(price)
                 except ValueError:
                     continue
+
+        # Return the most likely price (often the first one found)
+        if prices_found:
+            return prices_found[0]
 
         return None
 
