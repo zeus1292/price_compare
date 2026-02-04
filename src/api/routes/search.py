@@ -49,7 +49,7 @@ class SearchRequest(BaseModel):
     filters: Optional[SearchFilters] = None
     limit: int = Field(default=10, ge=1, le=100)
     enable_live_search: bool = Field(default=True)
-    confidence_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
+    confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     sort_by: Literal["relevance", "price_low_high", "price_high_low"] = Field(
         default="relevance",
         description="Sort order for results",
@@ -157,7 +157,7 @@ async def search_by_image(
     image: UploadFile = File(...),
     limit: int = Form(default=10),
     enable_live_search: bool = Form(default=True),
-    confidence_threshold: float = Form(default=0.9),
+    confidence_threshold: float = Form(default=0.5),
     sort_by: str = Form(default="relevance"),
     session_token: Optional[str] = Cookie(default=None, alias="session"),
 ):

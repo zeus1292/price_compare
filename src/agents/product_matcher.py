@@ -174,17 +174,18 @@ class ProductMatcherAgent(BaseAgent):
                     # Convert cosine distance to confidence (0 = identical, 2 = opposite)
                     confidence = max(0, 1 - distance / 2)
 
-                    if confidence >= confidence_threshold:
-                        product["match_confidence"] = confidence
-                        product["match_source"] = "clip_image"
+                    # Include ALL results - don't filter by threshold
+                    # Threshold filtering happens in orchestrator if needed
+                    product["match_confidence"] = confidence
+                    product["match_source"] = "clip_image"
 
-                        # Add image URL from metadata if available
-                        if metadatas and i < len(metadatas):
-                            meta = metadatas[i]
-                            if "image_url" in meta:
-                                product["image_url"] = meta["image_url"]
+                    # Add image URL from metadata if available
+                    if metadatas and i < len(metadatas):
+                        meta = metadatas[i]
+                        if "image_url" in meta:
+                            product["image_url"] = meta["image_url"]
 
-                        matches.append(product)
+                    matches.append(product)
 
             # Sort by confidence
             matches.sort(key=lambda x: x["match_confidence"], reverse=True)

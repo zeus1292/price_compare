@@ -251,7 +251,8 @@ class HybridSearchService:
             products = await self.sqlite.get_products_by_ids(top_ids)
             product_map = {p.id: p.to_dict() for p in products}
 
-            # Calculate confidence scores
+            # Calculate confidence scores - include ALL results, don't filter by threshold
+            # Threshold filtering happens in orchestrator's _combine_results if needed
             scored_results = []
             for item in fused_ids[:limit * 2]:
                 product_id = item["id"]
@@ -262,10 +263,9 @@ class HybridSearchService:
                         product,
                         vector_distance=item.get("distance"),
                     )
-                    if confidence >= threshold:
-                        product["match_confidence"] = confidence
-                        product["match_source"] = "database"
-                        scored_results.append(product)
+                    product["match_confidence"] = confidence
+                    product["match_source"] = "database"
+                    scored_results.append(product)
 
             # Sort by confidence
             scored_results.sort(key=lambda x: x["match_confidence"], reverse=True)
