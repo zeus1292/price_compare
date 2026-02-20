@@ -87,6 +87,10 @@ class PropertyExtractorAgent(BaseAgent):
             # Normalize extracted properties
             normalized = self._normalize_properties(properties)
 
+            # Fall back to raw query as name when LLM returns null for text input
+            if not normalized.get("name") and input_type == "text":
+                normalized["name"] = user_input
+
             # Calculate extraction confidence
             confidence = self._calculate_confidence(normalized)
 

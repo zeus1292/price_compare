@@ -140,6 +140,10 @@ class ConfidenceScorer:
         return 0.5
 
 
+# Bump this whenever scoring logic or result structure changes to bust stale cache
+CACHE_VERSION = "v2"
+
+
 class HybridSearchService:
     """
     Hybrid search combining SQL filtering with vector similarity.
@@ -198,7 +202,7 @@ class HybridSearchService:
 
         # Check cache
         if use_cache:
-            cached_result = await self._check_cache(query_properties)
+            cached_result = await self._check_cache(query_properties, limit)
             if cached_result:
                 return cached_result
 
@@ -212,7 +216,7 @@ class HybridSearchService:
                     confidence=1.0,
                 )
                 if use_cache:
-                    await self._update_cache(query_properties, result)
+                    await self._update_cache(query_properties, result, limit)
                 return result
 
         # Stage 2: SQL pre-filtering
@@ -282,7 +286,7 @@ class HybridSearchService:
         )
 
         if use_cache:
-            await self._update_cache(query_properties, result)
+            await self._update_cache(query_properties, result, limit)
 
         return result
 
@@ -356,9 +360,9 @@ class HybridSearchService:
 
         return fused
 
-    async def _check_cache(self, query_properties: dict) -> Optional[SearchResult]:
+    async def _check_cache(self, query_properties: dict, limit: int) -> Optional[SearchResult]:
         """Check cache for existing results."""
-        query_hash = self._hash_query(query_properties)
+        query_hash = self._hash_query(query_properties, limit)
         cache = await self.sqlite.get_cached_search(query_hash)
 
         if cache:
@@ -378,9 +382,10 @@ class HybridSearchService:
         self,
         query_properties: dict,
         result: SearchResult,
+        limit: int,
     ) -> None:
         """Update cache with search results."""
-        query_hash = self._hash_query(query_properties)
+        query_hash = self._hash_query(query_properties, limit)
 
         results_data = {
             "matches": result.matches,
@@ -395,11 +400,15 @@ class HybridSearchService:
             confidence_score=result.confidence,
         )
 
-    def _hash_query(self, query_properties: dict) -> str:
-        """Generate cache key for query."""
-        # Sort keys for consistent hashing
-        sorted_props = json.dumps(query_properties, sort_keys=True)
-        return hashlib.sha256(sorted_props.encode()).hexdigest()
+    def _hash_query(self, query_properties: dict, limit: int) -> str:
+        """Generate cache key for query, limit, and cache version."""
+        cache_input = {
+            "props": query_properties,
+            "limit": limit,
+            "v": CACHE_VERSION,
+        }
+        serialised = json.dumps(cache_input, sort_keys=True)
+        return hashlib.sha256(serialised.encode()).hexdigest()
 
     async def get_stats(self) -> dict:
         """Get search service statistics."""

@@ -340,10 +340,19 @@ class LiveSearcherAgent(BaseAgent):
             results = response.get("results", [])
             images = response.get("images", [])
 
-            # Attach images to results if available
+            # Attach per-result images first (Tavily newer API puts image on each result)
+            # Fall back to the global images list only for results that have no image
+            imageless_indices = []
             for i, result in enumerate(results):
-                if i < len(images):
-                    result["image_url"] = images[i]
+                if result.get("image"):
+                    result["image_url"] = result["image"]
+                else:
+                    imageless_indices.append(i)
+
+            # Assign spare global images to imageless results in order
+            for spare_url, idx in zip(images, imageless_indices):
+                if spare_url:
+                    results[idx]["image_url"] = spare_url
 
             # Cache results
             if use_cache:

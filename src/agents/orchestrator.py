@@ -239,12 +239,12 @@ class Orchestrator:
         limit: int = 10,
     ) -> List[dict]:
         """
-        Combine database and live search results without strict filtering.
+        Combine database and live search results, filtered by confidence threshold.
 
         Args:
             database_matches: Results from database search
             live_results: Results from live web search
-            confidence_threshold: Not used for filtering (kept for API compatibility)
+            confidence_threshold: Minimum confidence score to include a result
             limit: Maximum number of results to return
 
         Returns:
@@ -271,17 +271,20 @@ class Orchestrator:
                 seen_urls.add(url)
                 combined.append(result)
 
-        # Sort by confidence (highest first) but don't filter
+        # Sort by confidence (highest first)
         combined.sort(
             key=lambda x: x.get("match_confidence", 0),
             reverse=True,
         )
 
+        # Filter by confidence threshold
+        combined = [r for r in combined if r.get("match_confidence", 0) >= confidence_threshold]
+
         # Log combining stats
         logger.info(
             f"Combined results: {len(database_matches)} database + "
-            f"{len(live_results)} live = {len(combined)} unique -> "
-            f"returning top {min(len(combined), limit)}"
+            f"{len(live_results)} live = {len(combined)} unique after threshold "
+            f"{confidence_threshold} -> returning top {min(len(combined), limit)}"
         )
 
         return combined[:limit]
@@ -317,7 +320,7 @@ class Orchestrator:
             "user_input": query,
             "input_type": input_type,
             "limit": limit,
-            "confidence_threshold": confidence_threshold or self.default_confidence_threshold,
+            "confidence_threshold": confidence_threshold if confidence_threshold is not None else self.default_confidence_threshold,
             "enable_live_search": enable_live_search,
             "fast_mode": fast_mode,
             "database_matches": [],

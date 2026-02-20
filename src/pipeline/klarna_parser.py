@@ -464,8 +464,22 @@ class KlarnaParser:
                             product.price, product.currency = parsed
 
                 elif label == "Main picture" and not product.image_url:
-                    # Try to get src from attributes
+                    # Try to get src from attributes directly
                     url = attrs.get("src") or attrs.get("data-src")
+                    # Also check background_image field (CSS background images)
+                    if not url:
+                        bg = element.get("background_image", "")
+                        match = re.search(r'url\(["\']?(https?://[^"\')\s]+)["\']?\)', bg)
+                        if match:
+                            url = match.group(1)
+                    # Check children for img src
+                    if not url:
+                        for child in element.get("children", []):
+                            if isinstance(child, dict):
+                                child_attrs = child.get("attributes", {})
+                                url = child_attrs.get("src") or child_attrs.get("data-src")
+                                if url and url.startswith("http"):
+                                    break
                     if url and url.startswith("http"):
                         product.image_url = url
 
