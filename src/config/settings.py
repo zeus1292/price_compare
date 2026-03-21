@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     default_search_limit: int = Field(default=10)
     confidence_threshold: float = Field(default=0.5)
     enable_live_search: bool = Field(default=True)
+    disable_db_search: bool = Field(default=False, validation_alias="DISABLE_DB_SEARCH")
 
     # API Configuration
     api_host: str = Field(default="0.0.0.0")
@@ -92,7 +93,8 @@ class Settings(BaseSettings):
     def ensure_directories(self) -> None:
         """Create necessary data directories if they don't exist."""
         Path(self.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.chroma_path).mkdir(parents=True, exist_ok=True)
+        if not self.disable_db_search:
+            Path(self.chroma_path).mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache()

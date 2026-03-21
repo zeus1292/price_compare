@@ -18,9 +18,7 @@ services:
         sync: false
       - key: LANGSMITH_API_KEY
         sync: false
+      - key: DISABLE_DB_SEARCH
+        value: "true"
     healthCheckPath: /health
     autoDeploy: true
-    disk:
-      name: data
-      mountPath: /app/data
-      sizeGB: 1

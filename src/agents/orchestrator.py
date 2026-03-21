@@ -141,6 +141,17 @@ class Orchestrator:
         """
         Node for database matching.
         """
+        if self.settings.disable_db_search:
+            logger.info("DB search disabled (DISABLE_DB_SEARCH=true) — skipping")
+            return {
+                **state,
+                "database_matches": [],
+                "match_confidence": 0.0,
+                "search_method": "disabled",
+                "sql_candidates_count": 0,
+                "vector_candidates_count": 0,
+            }
+
         logger.info("Executing matching node")
 
         result = await self.matcher.execute({
