@@ -119,6 +119,21 @@ class CategoryService:
             self._llm_service = LLMService()
         return self._llm_service
 
+    def update_popularity_scores(self, scores: dict) -> None:
+        """
+        Update category popularity scores from live data (e.g. Google Trends).
+
+        Args:
+            scores: Dict mapping category_id → score (0-100)
+        """
+        updated = []
+        for category in self._categories:
+            if category["id"] in scores:
+                category["popularity_score"] = scores[category["id"]]
+                updated.append(category["id"])
+        if updated:
+            logger.info(f"Updated popularity scores for categories: {updated}")
+
     def get_trending_categories(self) -> List[Dict]:
         """
         Get the list of trending categories sorted by popularity.

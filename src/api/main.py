@@ -17,6 +17,8 @@ from src.api.middleware.tracing import TracingMiddleware
 from src.api.routes import auth, dataset, feedback, products, search
 from src.config.settings import get_settings
 from src.database.sqlite_manager import SQLiteManager
+from src.services.category_service import get_category_service
+from src.services.trends_service import TrendsRefreshService, set_trends_service
 
 
 logging.basicConfig(level=logging.INFO)
@@ -48,10 +50,16 @@ async def lifespan(app: FastAPI):
 
     logger.info("Database initialized")
 
+    # Start Google Trends refresh (every 24 hours)
+    trends_service = TrendsRefreshService(get_category_service(), interval_hours=24)
+    set_trends_service(trends_service)
+    await trends_service.start()
+
     yield
 
     # Cleanup
     logger.info("Shutting down Price Compare API...")
+    await trends_service.stop()
     if sqlite_manager:
         sqlite_manager.close()
 
@@ -138,6 +146,14 @@ def create_app() -> FastAPI:
             }
         except Exception as e:
             components["chromadb"] = {"status": "unhealthy", "error": str(e)}
+
+        # Check Google Trends refresh service
+        try:
+            from src.services.trends_service import get_trends_service
+            ts = get_trends_service()
+            components["trends_refresh"] = ts.get_status() if ts else {"status": "not_started"}
+        except Exception as e:
+            components["trends_refresh"] = {"status": "error", "error": str(e)}
 
         # Check API keys
         try:
