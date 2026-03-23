@@ -7,7 +7,7 @@ existing static scores when Trends is unavailable or rate-limited.
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 CATEGORY_TRENDS_KEYWORDS = {
     "electronics": "electronics",
     "fashion": "fashion",
-    "home_kitchen": "home kitchen",
-    "beauty": "beauty skincare",
-    "toys_games": "toys games",
+    "home_kitchen": "kitchen",
+    "beauty": "skincare",
+    "toys_games": "toys",
 }
 
 
@@ -72,7 +72,7 @@ class TrendsRefreshService:
         scores = await loop.run_in_executor(None, self._fetch_trends_sync)
         if scores:
             self._category_service.update_popularity_scores(scores)
-            self.last_updated = datetime.utcnow()
+            self.last_updated = datetime.now(timezone.utc)
             self.last_scores = scores
             logger.info(f"Category popularity updated from Google Trends: {scores}")
         else:
